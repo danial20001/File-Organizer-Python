@@ -179,4 +179,37 @@ if __name__ == '__main__':
     ex = FileOrganizerApp(auto_run=auto_run_flag)
     if not auto_run_flag:
         sys.exit(app.exec_())  # Only start the event loop if not auto-running
+import subprocess
 
+# Define your subnet range
+subnet = "10.344.344"
+start_ip = 1
+end_ip = 254
+
+# Open a file to save results
+output_file = "nslookup_results.txt"
+
+print(f"Starting nslookup scan for {subnet}.{start_ip}-{end_ip}")
+with open(output_file, "w") as file:
+    for i in range(start_ip, end_ip + 1):
+        ip = f"{subnet}.{i}"
+        try:
+            # Run nslookup for the current IP
+            result = subprocess.run(["nslookup", ip], capture_output=True, text=True, timeout=3)
+            
+            # Process the result
+            if "name =" in result.stdout.lower():
+                hostname = result.stdout.split("name =")[1].strip().split("\n")[0]
+                print(f"{ip} resolves to {hostname}")
+                file.write(f"{ip} resolves to {hostname}\n")
+            else:
+                print(f"{ip} does not resolve to a hostname")
+                file.write(f"{ip} does not resolve to a hostname\n")
+        except subprocess.TimeoutExpired:
+            print(f"{ip} timed out")
+            file.write(f"{ip}: Timeout\n")
+        except Exception as e:
+            print(f"Error for {ip}: {e}")
+            file.write(f"{ip}: Error: {e}\n")
+
+print(f"Scan completed. Results saved to {output_file}")
