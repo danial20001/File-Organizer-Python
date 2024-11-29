@@ -1,5 +1,42 @@
 import subprocess
 
+# Define the subnet details
+subnets = ["10.244.230", "10.244.231"]  # Covers the full /23 range
+start_ip = 0
+end_ip = 255
+
+# Output file to save results
+output_file = "nslookup_results_10.244.230.0_23.txt"
+
+print(f"Starting nslookup scan for /23 subnet: {subnets[0]}.0 to {subnets[1]}.255")
+with open(output_file, "w") as file:
+    for subnet in subnets:
+        for i in range(start_ip, end_ip + 1):
+            ip = f"{subnet}.{i}"
+            try:
+                # Run nslookup for the current IP
+                result = subprocess.run(["nslookup", ip], capture_output=True, text=True, timeout=3)
+
+                # Write the raw output to the file
+                file.write(f"Results for {ip}:\n")
+                file.write(result.stdout + "\n")
+                file.write("-" * 50 + "\n")  # Separator for readability
+                print(f"Checked {ip}, results saved.")
+            except subprocess.TimeoutExpired:
+                print(f"{ip} timed out.")
+                file.write(f"Results for {ip}:\nTimeout\n")
+                file.write("-" * 50 + "\n")
+            except Exception as e:
+                print(f"Error for {ip}: {e}")
+                file.write(f"Results for {ip}:\nError: {e}\n")
+                file.write("-" * 50 + "\n")
+
+print(f"Scan completed. Results saved to {output_file}")
+
+
+
+import subprocess
+
 # Define your subnet range
 subnet = "10.344.344"
 start_ip = 1
