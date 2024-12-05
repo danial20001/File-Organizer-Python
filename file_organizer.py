@@ -1,4 +1,4 @@
-
+managerClean = Trim(Replace(Replace(Split(Split(managerRaw, ",")(0), "=")(1), "\", ""), ",", ""))
 Dim managerRaw As String
 Dim managerClean As String
 
