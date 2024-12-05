@@ -1,3 +1,20 @@
+Dim managerRaw As String
+Dim managerClean As String
+
+managerRaw = .manager ' Get the raw manager DN
+If managerRaw <> "" Then
+    ' Remove "CN=" and anything after a comma
+    managerClean = Replace(managerRaw, "CN=", "")
+    managerClean = Replace(managerClean, "\", "") ' Remove the slash
+    managerClean = Left(managerClean, InStr(managerClean, ",") - 1) ' Extract until first comma
+Else
+    managerClean = "N/A" ' Handle cases where manager is not set
+End If
+
+' Write the cleaned name to the Manager column
+shtADQuery.[ra_Results_Manager].Offset(IngRowOffset, 0).Value = managerClean
+
+
 import subprocess
 
 # Define the subnet details
