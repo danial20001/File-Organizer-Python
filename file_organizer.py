@@ -1,5 +1,5 @@
-managerClean = Replace(Split(Replace(managerRaw, "\", ""), ",")(0), "CN=", "") & " " & _
-               Trim(Replace(Split(Replace(managerRaw, "\", ""), ",")(1), " ", ""))
+managerClean = StrConv(LCase(Replace(Split(Replace(Replace(Split(.manager, ",")(0), "CN=", ""), "\", ""), " ")(0), ",", "")), vbProperCase) & ", " & StrConv(LCase(Split(Replace(Replace(Split(.manager, ",")(0), "CN=", ""), "\", ""), " ")(1)), vbProperCase)
+
 Dim managerRaw As String
 Dim managerClean As String
 
