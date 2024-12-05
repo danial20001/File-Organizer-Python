@@ -1,3 +1,31 @@
+
+Dim managerRaw As String
+Dim managerClean As String
+
+' Get the raw manager DN
+managerRaw = .manager
+If managerRaw <> "" Then
+    On Error Resume Next ' Avoid runtime errors if unexpected format
+    ' Remove "CN=" and any backslashes
+    managerClean = Replace(managerRaw, "CN=", "")
+    managerClean = Replace(managerClean, "\", "") ' Remove backslashes
+    ' Extract the part before the first comma
+    If InStr(managerClean, ",") > 0 Then
+        managerClean = Left(managerClean, InStr(managerClean, ",") - 1)
+    Else
+        managerClean = "Unknown Manager" ' Handle unexpected formats
+    End If
+    On Error GoTo 0
+Else
+    managerClean = "N/A" ' Handle cases where manager is not set
+End If
+
+' Write the cleaned manager name to the Manager column
+shtADQuery.[ra_Results_Manager].Offset(IngRowOffset, 0).Value = managerClean
+
+
+
+
 Dim managerRaw As String
 Dim managerClean As String
 
