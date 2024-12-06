@@ -1,3 +1,9 @@
+=IF(OR(A2="UK", A2="France", A2="Germany"), "EMEA",
+IF(OR(A2="USA", A2="Canada"), "AMRS",
+IF(OR(A2="Japan", A2="Australia"), "APAC", "Other")))
+
+
+
 managerClean = StrConv(LCase(Replace(Split(Replace(Replace(Split(.manager, ",")(0), "CN=", ""), "\", ""), " ")(0), ",", "")), vbProperCase) & ", " & StrConv(LCase(Split(Replace(Replace(Split(.manager, ",")(0), "CN=", ""), "\", ""), " ")(1)), vbProperCase)
 
 Dim managerRaw As String
