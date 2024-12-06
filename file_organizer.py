@@ -1,6 +1,21 @@
-=IF(OR(A2="UK", A2="France", A2="Germany"), "EMEA",
-IF(OR(A2="USA", A2="Canada"), "AMRS",
-IF(OR(A2="Japan", A2="Australia"), "APAC", "Other")))
+Dim managerRaw As String
+Dim managerClean As String
+Dim parts() As String
+Dim firstName As String
+Dim lastName As String
+
+managerRaw = .manager
+managerRaw = Split(managerRaw, ",")(0)
+managerRaw = Replace(managerRaw, "CN=", "")
+managerRaw = Replace(managerRaw, "\", "")
+
+parts = Split(managerRaw, " ")
+firstName = Replace(parts(0), ",", "")
+lastName = parts(1)
+
+managerClean = firstName & ", " & lastName
+
+shtADQuery.[ra_Results_Manager].Offset(lngRowOffset, 0).Value = managerClean
 
 
 
