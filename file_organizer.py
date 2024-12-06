@@ -1,4 +1,20 @@
 Dim managerRaw As String
+Dim parts() As String
+Dim idCode As String
+
+managerRaw = .manager
+managerRaw = Replace(managerRaw, "CN=", "")
+managerRaw = Replace(managerRaw, "\", "")
+managerRaw = Split(managerRaw, ",OU=", 2)(0)
+parts = Split(Trim(managerRaw), " ")
+
+idCode = parts(2) ' This is the ID portion
+
+shtADQuery.[ra_Results_Manager].Offset(lngRowOffset, 0).Value = idCode
+
+
+
+Dim managerRaw As String
 Dim managerClean As String
 Dim parts() As String
 Dim firstName As String
