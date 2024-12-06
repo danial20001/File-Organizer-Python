@@ -5,17 +5,16 @@ Dim firstName As String
 Dim lastName As String
 
 managerRaw = .manager
-managerRaw = Split(managerRaw, ",")(0)
 managerRaw = Replace(managerRaw, "CN=", "")
 managerRaw = Replace(managerRaw, "\", "")
-
-parts = Split(managerRaw, " ")
+managerRaw = Split(managerRaw, ",OU=", 2)(0)
+parts = Split(Trim(managerRaw), " ")
 firstName = Replace(parts(0), ",", "")
 lastName = parts(1)
-
 managerClean = firstName & ", " & lastName
 
 shtADQuery.[ra_Results_Manager].Offset(lngRowOffset, 0).Value = managerClean
+
 
 
 
