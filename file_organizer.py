@@ -1,64 +1,80 @@
-Dim managerRaw As String
-Dim parts() As String
-Dim idCode As String
+import paramiko
+import time
 
-managerRaw = .manager
-managerRaw = Replace(managerRaw, "CN=", "")
-managerRaw = Replace(managerRaw, "\", "")
-managerRaw = Split(managerRaw, ",OU=", 2)(0)
-parts = Split(Trim(managerRaw), " ")
+# Jumphost credentials
+jumphost_ip = "<jumphost-ip>"
+jumphost_username = "<jumphost-username>"
+jumphost_password = "<jumphost-password>"
 
-idCode = parts(2) ' This is the ID portion
+# Devices to connect to
+devices = [
+    {"hostname": "device1", "username": "<device1-username>", "password": "<device1-password>"},
+    {"hostname": "device2", "username": "<device2-username>", "password": "<device2-password>"},
+    # Add more devices as needed
+]
 
-shtADQuery.[ra_Results_Manager].Offset(lngRowOffset, 0).Value = idCode
+# Command to run
+command = "show license usage"
 
+def connect_to_jumphost(jumphost_ip, username, password):
+    """Connects to the jumphost and returns the SSH client."""
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(jumphost_ip, username=username, password=password)
+    return ssh
 
+def connect_to_device(ssh, hostname, username, password):
+    """Connects to a device through the jumphost."""
+    # Open a shell
+    channel = ssh.invoke_shell()
+    time.sleep(1)
 
-Dim managerRaw As String
-Dim managerClean As String
-Dim parts() As String
-Dim firstName As String
-Dim lastName As String
+    # Send SSH command to connect to the device
+    channel.send(f"ssh {username}@{hostname}\n")
+    time.sleep(1)
 
-managerRaw = .manager
-managerRaw = Replace(managerRaw, "CN=", "")
-managerRaw = Replace(managerRaw, "\", "")
-managerRaw = Split(managerRaw, ",OU=", 2)(0)
-parts = Split(Trim(managerRaw), " ")
-firstName = Replace(parts(0), ",", "")
-lastName = parts(1)
-managerClean = firstName & ", " & lastName
+    # Handle device password prompt
+    output = channel.recv(65535).decode()
+    if "password:" in output:
+        channel.send(f"{password}\n")
+        time.sleep(1)
 
-shtADQuery.[ra_Results_Manager].Offset(lngRowOffset, 0).Value = managerClean
+    return channel
 
+def run_command_and_save_output(channel, command, output_file):
+    """Runs a command on the device and saves the output to a file."""
+    channel.send(f"{command}\n")
+    time.sleep(2)  # Wait for the command to execute
+    output = channel.recv(65535).decode()
 
+    with open(output_file, "w") as file:
+        file.write(output)
 
+def main():
+    try:
+        # Connect to jumphost
+        print("Connecting to jumphost...")
+        ssh = connect_to_jumphost(jumphost_ip, jumphost_username, jumphost_password)
 
-managerClean = StrConv(LCase(Replace(Split(Replace(Replace(Split(.manager, ",")(0), "CN=", ""), "\", ""), " ")(0), ",", "")), vbProperCase) & ", " & StrConv(LCase(Split(Replace(Replace(Split(.manager, ",")(0), "CN=", ""), "\", ""), " ")(1)), vbProperCase)
+        for device in devices:
+            print(f"Connecting to device: {device['hostname']}...")
+            channel = connect_to_device(ssh, device['hostname'], device['username'], device['password'])
 
-Dim managerRaw As String
-Dim managerClean As String
+            print(f"Running command on {device['hostname']}...")
+            output_file = f"{device['hostname']}_license_usage.txt"
+            run_command_and_save_output(channel, command, output_file)
+            print(f"Output saved to {output_file}")
 
-' Get the raw manager DN
-managerRaw = .manager
-If managerRaw <> "" Then
-    On Error Resume Next ' Avoid runtime errors if unexpected format
-    ' Remove "CN=" and any backslashes
-    managerClean = Replace(managerRaw, "CN=", "")
-    managerClean = Replace(managerClean, "\", "") ' Remove backslashes
-    ' Extract the part before the first comma
-    If InStr(managerClean, ",") > 0 Then
-        managerClean = Left(managerClean, InStr(managerClean, ",") - 1)
-    Else
-        managerClean = "Unknown Manager" ' Handle unexpected formats
-    End If
-    On Error GoTo 0
-Else
-    managerClean = "N/A" ' Handle cases where manager is not set
-End If
+        # Close the connection
+        ssh.close()
+        print("All tasks completed.")
 
-' Write the cleaned manager name to the Manager column
-shtADQuery.[ra_Results_Manager].Offset(IngRowOffset, 0).Value = managerClean
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
+
 
 
 
