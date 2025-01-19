@@ -1,76 +1,49 @@
 import paramiko
 import time
+from getpass import getpass
 
-# Jumphost credentials
-jumphost_ip = "<jumphost-ip>"
-jumphost_username = "<jumphost-username>"
-jumphost_password = "<jumphost-password>"
-
-# Devices to connect to
+# List of device hostnames
 devices = [
-    {"hostname": "device1", "username": "<device1-username>", "password": "<device1-password>"},
-    {"hostname": "device2", "username": "<device2-username>", "password": "<device2-password>"},
+    "device1",
+    "device2",
+    "device3",
     # Add more devices as needed
 ]
 
-# Command to run
+# Command to execute on devices
 command = "show license usage"
 
-def connect_to_jumphost(jumphost_ip, username, password):
-    """Connects to the jumphost and returns the SSH client."""
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(jumphost_ip, username=username, password=password)
-    return ssh
-
-def connect_to_device(ssh, hostname, username, password):
-    """Connects to a device through the jumphost."""
-    # Open a shell
-    channel = ssh.invoke_shell()
-    time.sleep(1)
-
-    # Send SSH command to connect to the device
-    channel.send(f"ssh {username}@{hostname}\n")
-    time.sleep(1)
-
-    # Handle device password prompt
-    output = channel.recv(65535).decode()
-    if "password:" in output:
-        channel.send(f"{password}\n")
-        time.sleep(1)
-
-    return channel
-
-def run_command_and_save_output(channel, command, output_file):
-    """Runs a command on the device and saves the output to a file."""
-    channel.send(f"{command}\n")
-    time.sleep(2)  # Wait for the command to execute
-    output = channel.recv(65535).decode()
-
-    with open(output_file, "w") as file:
-        file.write(output)
+def connect_to_device(hostname, username, password, command):
+    """Connects to a device and runs a command."""
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname, username=username, password=password)
+        
+        # Run the command
+        stdin, stdout, stderr = ssh.exec_command(command)
+        output = stdout.read().decode()
+        
+        # Save the output to a file
+        with open(f"{hostname}_license_usage.txt", "w") as file:
+            file.write(output)
+        
+        print(f"Output saved for {hostname}")
+        ssh.close()
+    except Exception as e:
+        print(f"Failed to connect to {hostname}: {e}")
 
 def main():
-    try:
-        # Connect to jumphost
-        print("Connecting to jumphost...")
-        ssh = connect_to_jumphost(jumphost_ip, jumphost_username, jumphost_password)
+    # Ask for username and password once
+    username = input("Enter your username: ")
+    password = getpass("Enter your password: ")  # Secure password input
 
-        for device in devices:
-            print(f"Connecting to device: {device['hostname']}...")
-            channel = connect_to_device(ssh, device['hostname'], device['username'], device['password'])
+    # Iterate over devices and run the command
+    for device in devices:
+        print(f"Connecting to {device}...")
+        connect_to_device(device, username, password, command)
 
-            print(f"Running command on {device['hostname']}...")
-            output_file = f"{device['hostname']}_license_usage.txt"
-            run_command_and_save_output(channel, command, output_file)
-            print(f"Output saved to {output_file}")
-
-        # Close the connection
-        ssh.close()
-        print("All tasks completed.")
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    print("All tasks completed.")
 
 if __name__ == "__main__":
     main()
