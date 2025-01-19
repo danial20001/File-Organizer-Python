@@ -5,7 +5,7 @@ import os
 # List of device hostnames
 devices = [
     "device1",
-    "device2",
+    "gbgb",  # Example device that will fail to connect
     "device3",
     # Add more devices as needed
 ]
@@ -14,7 +14,6 @@ devices = [
 commands = [
     "show license usage",
     "show version",
-    "show running-config",
     # Add more commands as needed
 ]
 
@@ -50,6 +49,7 @@ def connect_to_device(hostname, username, password, commands, output_file):
         with open(error_file, "a") as log:
             log.write(f"Failed to connect to {hostname}: {e}\n")
         print(f"Failed to connect to {hostname}: {e}")
+        # Skip the current device and continue with others
 
 def main():
     # Ask for username and password once
