@@ -1,5 +1,4 @@
-import paramiko
-import time
+from netmiko import ConnectHandler
 from getpass import getpass
 
 # List of device hostnames
@@ -14,22 +13,29 @@ devices = [
 command = "show license usage"
 
 def connect_to_device(hostname, username, password, command):
-    """Connects to a device and runs a command."""
+    """Connects to a device using Netmiko and runs a command."""
     try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname, username=username, password=password)
-        
+        # Define device parameters
+        device = {
+            "device_type": "cisco_ios",  # Change this to match your device type
+            "host": hostname,
+            "username": username,
+            "password": password,
+        }
+
+        # Connect to the device
+        connection = ConnectHandler(**device)
+
         # Run the command
-        stdin, stdout, stderr = ssh.exec_command(command)
-        output = stdout.read().decode()
-        
+        output = connection.send_command(command)
+
         # Save the output to a file
         with open(f"{hostname}_license_usage.txt", "w") as file:
             file.write(output)
-        
+
         print(f"Output saved for {hostname}")
-        ssh.close()
+        connection.disconnect()
+
     except Exception as e:
         print(f"Failed to connect to {hostname}: {e}")
 
@@ -47,6 +53,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
