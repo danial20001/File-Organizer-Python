@@ -1,5 +1,6 @@
 from netmiko import ConnectHandler
 from getpass import getpass
+import os
 
 # List of device hostnames
 devices = [
@@ -9,11 +10,16 @@ devices = [
     # Add more devices as needed
 ]
 
-# Command to execute on devices
-command = "show license usage"
+# Commands to execute on devices
+commands = [
+    "show license usage",
+    "show version",
+    "show running-config",
+    # Add more commands as needed
+]
 
-def connect_to_device(hostname, username, password, command):
-    """Connects to a device using Netmiko and runs a command."""
+def connect_to_device(hostname, username, password, commands, output_file):
+    """Connects to a device using Netmiko and runs multiple commands."""
     try:
         # Define device parameters
         device = {
@@ -26,17 +32,23 @@ def connect_to_device(hostname, username, password, command):
         # Connect to the device
         connection = ConnectHandler(**device)
 
-        # Run the command
-        output = connection.send_command(command)
+        # Append the output for each command
+        with open(output_file, "a") as file:
+            file.write(f"--- Output for {hostname} ---\n")
+            for command in commands:
+                file.write(f"\n>>> Command: {command}\n")
+                output = connection.send_command(command)
+                file.write(output + "\n")
+            file.write("\n" + "=" * 50 + "\n\n")
 
-        # Save the output to a file
-        with open(f"{hostname}_license_usage.txt", "w") as file:
-            file.write(output)
-
-        print(f"Output saved for {hostname}")
+        print(f"Output for {hostname} saved in {output_file}")
         connection.disconnect()
 
     except Exception as e:
+        # Log the error for the device
+        error_file = "error_log.txt"
+        with open(error_file, "a") as log:
+            log.write(f"Failed to connect to {hostname}: {e}\n")
         print(f"Failed to connect to {hostname}: {e}")
 
 def main():
@@ -44,15 +56,25 @@ def main():
     username = input("Enter your username: ")
     password = getpass("Enter your password: ")  # Secure password input
 
-    # Iterate over devices and run the command
+    # Define the single output file name
+    output_file = "all_device_outputs.txt"
+
+    # Clear the file at the start (if it already exists)
+    with open(output_file, "w") as file:
+        file.write("Device Command Outputs\n")
+        file.write("=" * 50 + "\n\n")
+
+    # Iterate over devices and run the commands
     for device in devices:
         print(f"Connecting to {device}...")
-        connect_to_device(device, username, password, command)
+        connect_to_device(device, username, password, commands, output_file)
 
-    print("All tasks completed.")
+    print("All tasks completed. Check all_device_outputs.txt for results.")
+    print("Check error_log.txt for failures, if any.")
 
 if __name__ == "__main__":
     main()
+
 
 
 
