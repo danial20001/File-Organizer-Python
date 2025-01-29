@@ -1,3 +1,9 @@
+curl -sk -X POST https://192.168.1.1/mgmt/shared/authn/login \
+     -H "Content-Type: application/json" \
+     -d '{"username":"admin","password":"mypassword","loginProviderName":"tmos"}'
+
+
+
 import requests
 
 # Disable SSL warnings (use only for testing, not recommended for production)
