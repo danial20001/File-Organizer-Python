@@ -1,3 +1,47 @@
+import requests
+
+# Disable SSL warnings (use only for testing, not recommended for production)
+requests.packages.urllib3.disable_warnings()
+
+def login_to_f5():
+    # Get user input for credentials and F5 host
+    f5_host = input("Enter F5 management IP/hostname (e.g., https://<BIG-IP-IP>): ").strip()
+    username = input("Enter your username: ").strip()
+    password = input("Enter your password: ").strip()
+
+    # Login URL
+    url = f"{f5_host}/mgmt/shared/authn/login"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+    }
+
+    try:
+        # Send POST request to authenticate
+        response = requests.post(url, headers=headers, json=payload, verify=False)
+
+        # Check for success or failure
+        if response.status_code == 200:
+            print("✅ Successfully logged in!")
+            token = response.json().get("token", {}).get("token")
+            if token:
+                print(f"🔑 Authentication Token: {token}")
+            return token
+        elif response.status_code == 401:
+            print("❌ Unauthorized: Invalid credentials.")
+        else:
+            print(f"❌ Error: {response.status_code} - {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Connection error: {e}")
+
+if __name__ == "__main__":
+    login_to_f5()
+
+
+
+
 from netmiko import ConnectHandler
 from getpass import getpass
 import os
