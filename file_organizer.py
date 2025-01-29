@@ -1,3 +1,32 @@
+def get_wide_ips(f5_host, token):
+    # Base URL without query
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a"
+    
+    # Headers
+    headers = {
+        "X-F5-Auth-Token": token,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    # Manually append the query parameter, but use '%24expand' (URL-encoded '$')
+    # instead of '$expand' to avoid issues.
+    url_with_expand = f"{url}?%24expand=all-properties"
+    
+    # Debug print, so you can confirm final URL
+    print("Requesting Wide IPs from:", url_with_expand)
+
+    # Perform GET
+    response = requests.get(url_with_expand, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json().get("items", [])
+    else:
+        print(f"❌ Failed to fetch Wide IPs: {response.status_code}")
+        print("Response text:", response.text)  # Print the full error message
+        return []
+
+
+
 import requests
 import json
 
