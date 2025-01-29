@@ -1,3 +1,171 @@
+import requests
+import json
+
+# Disable SSL warnings (only recommended in test environments)
+requests.packages.urllib3.disable_warnings()
+
+def login_to_f5():
+    f5_host = input("Enter F5 management IP/hostname: ")
+    username = input("Enter your username: ")
+    password = input("Enter your password: ")
+
+    url = f"https://{f5_host}/mgmt/shared/authn/login"
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+    }
+
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 200:
+        # Debug: Print the entire response JSON to confirm we have a token
+        print("Login response JSON:", response.json())
+
+        token = response.json().get("token", {}).get("token")
+        if token:
+            print("✅ Successfully logged in!")
+            return token, f5_host, username, password
+        else:
+            print("❌ Could not extract token from login response.")
+            return None, None, None, None
+    else:
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        return None, None, None, None
+
+def get_all_wide_ips(f5_host, token):
+    """
+    Fetches the basic list of Wide IPs without using ?$expand.
+    This should return at least the Wide IP names and references to their pools.
+    """
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a"
+    headers = {
+        "X-F5-Auth-Token": token,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    print(f"GET: {url}")
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("items", [])
+    else:
+        print(f"❌ Failed to fetch Wide IPs: {response.status_code}")
+        print("Response text:", response.text)
+        return []
+
+def get_wideip_pools(pools_link, headers):
+    """
+    Given the wide IP's 'poolsReference.link', fetch the actual pool info (basic).
+    """
+    print(f"GET pools for wide IP: {pools_link}")
+    response = requests.get(pools_link, headers=headers, verify=False)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("items", [])
+    else:
+        print("⚠️ Failed to fetch pools from:", pools_link)
+        print("Status code:", response.status_code, "Response text:", response.text)
+        return []
+
+def get_pool_details(pool_selfLink, headers):
+    """
+    pool_selfLink is typically from pool["selfLink"], e.g.:
+      "https://<host>/mgmt/tm/gtm/pool/a/~Common~mypool?ver=..."
+    """
+    print(f"GET pool details: {pool_selfLink}")
+    response = requests.get(pool_selfLink, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"⚠️ Failed to fetch details for pool at link: {pool_selfLink}")
+        print(f"Status code: {response.status_code}, Response text: {response.text}")
+        return None
+
+def extract_pool_members(pool_details):
+    members = []
+    for member in pool_details.get("members", []):
+        # e.g. "10.160.224.64:10_160_224_64_445"
+        raw_address = member["name"]
+        ip_address = raw_address.split(":")[0]
+        member_order = member.get("member-order", "Unknown")
+        members.append({
+            "raw": raw_address,
+            "ip": ip_address,
+            "order": member_order
+        })
+    return members
+
+def collect_wide_ip_data():
+    # 1) Log in and get token
+    token, f5_host, username, password = login_to_f5()
+    if not token:
+        return
+
+    # 2) Fetch the list of Wide IPs
+    wide_ips = get_all_wide_ips(f5_host, token)
+
+    # Prepare common headers for subsequent requests
+    headers = {
+        "X-F5-Auth-Token": token,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    wide_ip_data = []
+
+    # 3) For each Wide IP, get pool references, then pool details
+    for wip in wide_ips:
+        wip_name = wip.get("name", "Unknown")
+        wip_entry = {
+            "name": wip_name,
+            "pools": []
+        }
+        # Some basic info about the WIP that might exist
+        # (Check keys in your environment; "pool-lb-mode" might or might not appear)
+        if "pool-lb-mode" in wip:
+            wip_entry["pool_lb_mode"] = wip["pool-lb-mode"]
+
+        # The 'poolsReference' key should point to a subcollection link
+        pools_ref = wip.get("poolsReference", {})
+        pools_link = pools_ref.get("link")
+
+        if pools_link:
+            # 4) Fetch the wide IP's pools
+            pools = get_wideip_pools(pools_link, headers)
+            for p in pools:
+                pool_selfLink = p.get("selfLink", "")
+                pool_name = p.get("name", "Unknown")
+
+                # 5) Fetch the pool's *full* details, including members
+                pool_details = get_pool_details(pool_selfLink, headers)
+                if pool_details:
+                    pool_entry = {
+                        "name": pool_details.get("name", pool_name),
+                        "fallback_method": pool_details.get("fallback", "Unknown"),
+                        "load_balancing_mode": pool_details.get("load-balancing-mode", "Unknown"),
+                        "members": extract_pool_members(pool_details)
+                    }
+                    wip_entry["pools"].append(pool_entry)
+        else:
+            print(f"⚠️ Wide IP {wip_name} has no 'poolsReference' link. Possibly no pools?")
+
+        wide_ip_data.append(wip_entry)
+
+    # 6) Save final data to JSON
+    with open("f5_wide_ip_data.json", "w") as f:
+        json.dump(wide_ip_data, f, indent=4)
+
+    print("✅ Data successfully saved in f5_wide_ip_data.json")
+
+if __name__ == "__main__":
+    collect_wide_ip_data()
+
+
 def get_wide_ips(f5_host, token):
     # Base URL without query
     url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a"
