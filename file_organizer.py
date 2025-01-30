@@ -1,4 +1,70 @@
 import requests
+
+def get_wide_ips(f5_host, token):
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?%24expand=all-properties"
+    headers = {
+        "X-F5-Auth-Token": token,
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+
+    # Debug: Print the exact URL and headers Python is sending
+    print("🚀 Python is sending this request:")
+    print("🔗 URL:", url)
+    print("📌 Headers:", headers)
+
+    # Create a prepared request to inspect the exact request format
+    session = requests.Session()
+    req = requests.Request("GET", url, headers=headers)
+    prepared = session.prepare_request(req)
+
+    print("\n📢 FINAL SENT REQUEST URL:", prepared.url)
+
+    # Send the request
+    response = session.send(prepared, verify=False)
+
+    if response.status_code == 200:
+        return response.json().get("items", [])
+    else:
+        print(f"❌ Failed to fetch Wide IPs: {response.status_code}")
+        print("🛑 Response Text:", response.text)
+        return []
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import requests
 import json
 
 # Disable SSL warnings (only for testing, not recommended in production)
