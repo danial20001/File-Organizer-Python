@@ -1,6 +1,38 @@
 import requests
 
 def get_wide_ips(f5_host, token):
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a"
+
+    # Headers that match your working curl request
+    headers = {
+        "X-F5-Auth-Token": token,
+        "User-Agent": "curl/7.29.0",  # Mimic curl exactly
+        "Accept": "*/*",  # Curl sends this, so Python should too
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
+    }
+
+    # Equivalent to `-k` in curl (disable SSL verification)
+    response = requests.get(url, headers=headers, verify=False)
+
+    # Debugging output
+    print("Python Sending URL:", url)
+    print("Python Sending Headers:", headers)
+    print("Response Status Code:", response.status_code)
+    print("Response Text:", response.text)
+
+    if response.status_code == 200:
+        return response.json().get("items", [])
+    else:
+        return []
+
+
+
+
+import requests
+
+def get_wide_ips(f5_host, token):
     url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?%24expand=all-properties"
     headers = {
         "X-F5-Auth-Token": token,
