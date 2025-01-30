@@ -1,6 +1,137 @@
 import requests
 import json
 
+# Disable SSL warnings (only for testing, not recommended in production)
+requests.packages.urllib3.disable_warnings()
+
+# Function to log in and get an authentication token
+def login_to_f5():
+    f5_host = input("Enter F5 management IP/hostname: ")
+    username = input("Enter your username: ")
+    password = input("Enter your password: ")
+
+    url = f"https://{f5_host}/mgmt/shared/authn/login"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+    }
+
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 200:
+        print("✅ Successfully logged in!")
+        return response.json().get("token", {}).get("token"), f5_host
+    else:
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        return None, None
+
+# Function to fetch all Wide IPs
+def get_wide_ips(f5_host, token):
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+    headers = {"X-F5-Auth-Token": token}
+
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json().get("items", [])
+    else:
+        print(f"❌ Failed to fetch Wide IPs: {response.status_code}")
+        return []
+
+# Function to fetch pool details for a given pool name
+def get_pool_details(f5_host, token, pool_name):
+    url = f"https://{f5_host}/mgmt/tm/gtm/pool/a/{pool_name}?$expand=all-properties"
+    headers = {"X-F5-Auth-Token": token}
+
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"⚠️ Failed to fetch details for pool: {pool_name}")
+        return None
+
+# Function to extract pool members (getting the IP before ":")
+def extract_pool_members(pool_details):
+    members = []
+    for member in pool_details.get("members", []):
+        raw_address = member["name"]  # Example: "10.160.224.64:10_160_224_64_445"
+        ip_address = raw_address.split(":")[0]  # Extracting only the IP part
+        member_order = member.get("member-order", "Unknown")
+        members.append({
+            "raw": raw_address,
+            "ip": ip_address,
+            "order": member_order
+        })
+    return members
+
+# Main function to gather Wide IP and Pool data
+def collect_wide_ip_data():
+    token, f5_host = login_to_f5()
+    if not token:
+        return
+
+    wide_ips = get_wide_ips(f5_host, token)
+    wide_ip_data = []
+
+    for wide_ip in wide_ips:
+        wide_ip_entry = {
+            "name": wide_ip["name"],
+            "pool_lb_mode": wide_ip.get("pool-lb-mode", "Unknown"),  # Load balancing method for selecting pools
+            "pools": []
+        }
+
+        for pool in wide_ip.get("pools", []):
+            pool_name = pool["name"]
+            pool_order = pool.get("order", "Unknown")
+            pool_details = get_pool_details(f5_host, token, pool_name)
+
+            if pool_details:
+                pool_entry = {
+                    "name": pool_name,
+                    "order": pool_order,
+                    "fallback_method": pool_details.get("fallback", "Unknown"),
+                    "load_balancing_mode": pool_details.get("load-balancing-mode", "Unknown"),
+                    "members": extract_pool_members(pool_details)
+                }
+                wide_ip_entry["pools"].append(pool_entry)
+
+        wide_ip_data.append(wide_ip_entry)
+
+    # Save data to JSON
+    with open("f5_wide_ip_data.json", "w") as f:
+        json.dump(wide_ip_data, f, indent=4)
+
+    print("✅ Data successfully saved in f5_wide_ip_data.json")
+
+# Run the script
+if __name__ == "__main__":
+    collect_wide_ip_data()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import requests
+import json
+
 # Disable SSL warnings (only recommended in test environments)
 requests.packages.urllib3.disable_warnings()
 
