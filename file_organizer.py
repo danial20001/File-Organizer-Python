@@ -1,3 +1,138 @@
+#!/bin/bash
+
+# Set output file
+OUTPUT_FILE="f5_wide_ip_data.json"
+
+# Disable SSL verification for self-signed certs (use with caution)
+CURL_OPTS="-sk"
+
+# Function to log in and get authentication token
+function login_to_f5() {
+    echo "Enter F5 management IP/hostname: "
+    read -r F5_HOST
+    echo "Enter your username: "
+    read -r USERNAME
+    echo "Enter your password: "
+    read -rs PASSWORD
+    echo ""
+
+    LOGIN_RESPONSE=$(curl $CURL_OPTS -H "Content-Type: application/json" -X POST -d '{
+        "username": "'"$USERNAME"'",
+        "password": "'"$PASSWORD"'",
+        "loginProviderName": "tmos"
+    }' "https://$F5_HOST/mgmt/shared/authn/login")
+
+    TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token.token')
+
+    if [[ "$TOKEN" == "null" || -z "$TOKEN" ]]; then
+        echo "❌ Authentication failed!"
+        exit 1
+    fi
+
+    echo "✅ Successfully logged in!"
+}
+
+# Function to fetch Wide IPs
+function get_wide_ips() {
+    echo "🔍 Fetching Wide IPs..."
+    WIDE_IPS_RESPONSE=$(curl $CURL_OPTS -H "X-F5-Auth-Token: $TOKEN" "https://$F5_HOST/mgmt/tm/gtm/wideip/a?\$expand=all-properties")
+    echo "$WIDE_IPS_RESPONSE" > wide_ips.json
+}
+
+# Function to fetch pool details for a given pool name
+function get_pool_details() {
+    POOL_NAME="$1"
+    echo "🔍 Fetching Pool Details for: $POOL_NAME..."
+    POOL_DETAILS_RESPONSE=$(curl $CURL_OPTS -H "X-F5-Auth-Token: $TOKEN" "https://$F5_HOST/mgmt/tm/gtm/pool/a/$POOL_NAME?\$expand=all-properties")
+    echo "$POOL_DETAILS_RESPONSE"
+}
+
+# Main function
+function collect_f5_data() {
+    login_to_f5
+    get_wide_ips
+
+    echo "[" > "$OUTPUT_FILE"
+
+    # Loop through each Wide IP and get details
+    WIDE_IPS=$(jq -c '.items[]' wide_ips.json)
+
+    FIRST_ITEM=true
+    echo "$WIDE_IPS" | while IFS= read -r WIP; do
+        WIP_NAME=$(echo "$WIP" | jq -r '.name')
+        POOL_LB_MODE=$(echo "$WIP" | jq -r '.pool-lb-mode')
+
+        echo "📌 Processing Wide IP: $WIP_NAME"
+
+        # Start JSON entry
+        if [ "$FIRST_ITEM" = true ]; then
+            FIRST_ITEM=false
+        else
+            echo "," >> "$OUTPUT_FILE"
+        fi
+        echo "{ \"name\": \"$WIP_NAME\", \"pool_lb_mode\": \"$POOL_LB_MODE\", \"pools\": [" >> "$OUTPUT_FILE"
+
+        # Loop through pools
+        POOL_ENTRIES=$(echo "$WIP" | jq -c '.pools[]')
+        FIRST_POOL=true
+
+        echo "$POOL_ENTRIES" | while IFS= read -r POOL; do
+            POOL_NAME=$(echo "$POOL" | jq -r '.name')
+            POOL_ORDER=$(echo "$POOL" | jq -r '.order')
+
+            POOL_DETAILS=$(get_pool_details "$POOL_NAME")
+
+            FALLBACK_METHOD=$(echo "$POOL_DETAILS" | jq -r '.fallback')
+            LB_MODE=$(echo "$POOL_DETAILS" | jq -r '.load-balancing-mode')
+
+            # Start Pool JSON entry
+            if [ "$FIRST_POOL" = true ]; then
+                FIRST_POOL=false
+            else
+                echo "," >> "$OUTPUT_FILE"
+            fi
+            echo "{ \"name\": \"$POOL_NAME\", \"order\": \"$POOL_ORDER\", \"fallback_method\": \"$FALLBACK_METHOD\", \"load_balancing_mode\": \"$LB_MODE\", \"members\": [" >> "$OUTPUT_FILE"
+
+            # Extract Pool Members
+            MEMBERS=$(echo "$POOL_DETAILS" | jq -c '.members[]')
+            FIRST_MEMBER=true
+            echo "$MEMBERS" | while IFS= read -r MEMBER; do
+                RAW_MEMBER=$(echo "$MEMBER" | jq -r '.name')
+                MEMBER_IP=$(echo "$RAW_MEMBER" | cut -d':' -f1)
+                MEMBER_ORDER=$(echo "$MEMBER" | jq -r '.member-order')
+
+                # Start Member JSON entry
+                if [ "$FIRST_MEMBER" = true ]; then
+                    FIRST_MEMBER=false
+                else
+                    echo "," >> "$OUTPUT_FILE"
+                fi
+                echo "{ \"raw\": \"$RAW_MEMBER\", \"ip\": \"$MEMBER_IP\", \"order\": \"$MEMBER_ORDER\" }" >> "$OUTPUT_FILE"
+            done
+
+            # Close members array
+            echo "] }" >> "$OUTPUT_FILE"
+        done
+
+        # Close pools array
+        echo "] }" >> "$OUTPUT_FILE"
+    done
+
+    # Close JSON file
+    echo "]" >> "$OUTPUT_FILE"
+    echo "✅ Data successfully saved in $OUTPUT_FILE"
+}
+
+# Run the script
+collect_f5_data
+
+
+
+
+
+
+
+
 import requests
 import json
 import subprocess
