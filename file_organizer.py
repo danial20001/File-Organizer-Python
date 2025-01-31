@@ -27,6 +27,151 @@ def login_to_f5():
         print(f"❌ Login failed: {response.status_code} - {response.text}")
         return None, None
 
+def run_curl_command(command):
+    """
+    Run a command via an interactive login shell.
+    This ensures that the environment on your jump server (with its default
+    headers, proxy settings, etc.) is loaded.
+    """
+    full_cmd = ["bash", "-l", "-c", command]
+    try:
+        print("Running command:", command)
+        result = subprocess.run(full_cmd, capture_output=True, text=True, check=True)
+        if result.stderr:
+            print("stderr:", result.stderr)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print("Command failed with error:", e.stderr)
+        return None
+
+def get_wide_ips(f5_host, token):
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+    # Replicate your working curl command exactly:
+    command = f'curl -vk -H "X-F5-Auth-Token: {token}" "{url}"'
+    output = run_curl_command(command)
+    if not output:
+        print("No output received for wide IPs.")
+        return []
+    try:
+        data = json.loads(output)
+        items = data.get("items", [])
+        if not items:
+            print("No items returned in the wide IPs response.")
+        else:
+            print(f"Fetched {len(items)} wide IP items.")
+        return items
+    except json.JSONDecodeError as e:
+        print("Error decoding JSON for wide IPs:", e)
+        print("Output was:", output)
+        return []
+
+def get_pool_details(f5_host, token, pool_name):
+    url = f"https://{f5_host}/mgmt/tm/gtm/pool/a/{pool_name}?$expand=all-properties"
+    command = f'curl -vk -H "X-F5-Auth-Token: {token}" "{url}"'
+    output = run_curl_command(command)
+    if not output:
+        print(f"No output received for pool '{pool_name}'.")
+        return None
+    try:
+        data = json.loads(output)
+        return data
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON for pool '{pool_name}':", e)
+        print("Output was:", output)
+        return None
+
+def extract_pool_members(pool_details):
+    members = []
+    for member in pool_details.get("members", []):
+        raw_address = member.get("name", "")
+        ip_address = raw_address.split(":")[0]
+        member_order = member.get("member-order", "Unknown")
+        members.append({
+            "raw": raw_address,
+            "ip": ip_address,
+            "order": member_order
+        })
+    return members
+
+def collect_wide_ip_data():
+    token, f5_host = login_to_f5()
+    if not token:
+        return
+
+    wide_ips = get_wide_ips(f5_host, token)
+    if not wide_ips:
+        print("No Wide IPs were fetched.")
+        return
+
+    wide_ip_data = []
+
+    for wide_ip in wide_ips:
+        wide_ip_entry = {
+            "name": wide_ip.get("name"),
+            "pool_lb_mode": wide_ip.get("pool-lb-mode", "Unknown"),
+            "pools": []
+        }
+        for pool in wide_ip.get("pools", []):
+            pool_name = pool.get("name")
+            pool_order = pool.get("order", "Unknown")
+            print(f"Fetching details for pool: {pool_name}")
+            pool_details = get_pool_details(f5_host, token, pool_name)
+            if pool_details:
+                pool_entry = {
+                    "name": pool_name,
+                    "order": pool_order,
+                    "fallback_method": pool_details.get("fallback", "Unknown"),
+                    "load_balancing_mode": pool_details.get("load-balancing-mode", "Unknown"),
+                    "members": extract_pool_members(pool_details)
+                }
+                wide_ip_entry["pools"].append(pool_entry)
+        wide_ip_data.append(wide_ip_entry)
+
+    with open("f5_wide_ip_data.json", "w") as f:
+        json.dump(wide_ip_data, f, indent=4)
+
+    print("✅ Data successfully saved in f5_wide_ip_data.json")
+
+if __name__ == "__main__":
+    collect_wide_ip_data()
+    
+    
+    
+    
+
+
+
+
+
+import requests
+import json
+import subprocess
+
+# Disable SSL warnings (only for testing, not recommended in production)
+requests.packages.urllib3.disable_warnings()
+
+def login_to_f5():
+    f5_host = input("Enter F5 management IP/hostname: ")
+    username = input("Enter your username: ")
+    password = input("Enter your password: ")
+
+    url = f"https://{f5_host}/mgmt/shared/authn/login"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+    }
+
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 200:
+        print("✅ Successfully logged in!")
+        token = response.json().get("token", {}).get("token")
+        return token, f5_host
+    else:
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        return None, None
+
 def run_curl_command(cmd):
     try:
         print("Running command:", " ".join(cmd))
