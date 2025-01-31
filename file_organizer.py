@@ -113,15 +113,35 @@ def login_to_f5():
         return None, None
 
 # Function to fetch all Wide IPs
-def get_wide_ips(f5_host, token):
-    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
-    headers = {"X-F5-Auth-Token": token}
+def get_wide_ips_via_curl(f5_host, token):
+    """
+    Runs a cURL command in a subprocess to fetch GTM Wide IPs, then returns
+    the parsed JSON 'items' array. This bypasses python-requests completely.
+    """
+    # Construct the cURL command exactly as you tested it on the CLI
+    # Note: -s = silent, -k = skip SSL certificate verification
+    curl_cmd = [
+        "curl",
+        "-sk",  # silent + insecure SSL
+        "-H", f"X-F5-Auth-Token: {token}",
+        f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+    ]
 
-    response = requests.get(url, headers=headers, verify=False)
-    if response.status_code == 200:
-        return response.json().get("items", [])
-    else:
-        print(f"❌ Failed to fetch Wide IPs: {response.status_code}")
+    try:
+        # Run the command; capture the output (stdout)
+        output = subprocess.check_output(curl_cmd)
+        # Decode from bytes to string
+        output_str = output.decode("utf-8", errors="replace")
+
+        # Attempt to parse JSON
+        data = json.loads(output_str)
+        # Return 'items' if it exists
+        return data.get("items", [])
+    except subprocess.CalledProcessError as cpe:
+        print("❌ Error calling cURL:", cpe)
+        return []
+    except json.JSONDecodeError as je:
+        print("❌ Error parsing JSON:", je)
         return []
 
 # Function to fetch pool details for a given pool name
