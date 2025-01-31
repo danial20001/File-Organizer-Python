@@ -1,4 +1,44 @@
 import requests
+from urllib.parse import quote
+
+def get_wide_ips(f5_host, token):
+    # Encode the $expand query parameter
+    encoded_expand = quote("$expand=all-properties")
+
+    # Construct the URL
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?{encoded_expand}"
+
+    # Headers to mimic curl
+    headers = {
+        "X-F5-Auth-Token": token,
+        "User-Agent": "curl/7.29.0",
+        "Accept": "*/*",
+        "Host": f5_host  # Ensure the correct Host header
+    }
+
+    # Print request details for debugging
+    print(f"Requesting URL: {url}")
+    print(f"Headers: {headers}")
+
+    # Make the GET request with SSL verification disabled
+    response = requests.get(url, headers=headers, verify=False)
+
+    # Print response details for debugging
+    print(f"Response Status Code: {response.status_code}")
+    print(f"Response Text: {response.text}")
+
+    # Return data if successful
+    if response.status_code == 200:
+        return response.json().get("items", [])
+    else:
+        print(f"❌ Failed to fetch Wide IPs: {response.status_code}")
+        return []
+
+
+
+
+
+import requests
 import json
 
 # Disable SSL warnings (only for testing, not recommended in production)
