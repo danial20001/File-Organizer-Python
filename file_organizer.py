@@ -1,4 +1,175 @@
 import requests
+import json
+import subprocess  # <-- Needed to run cURL commands
+
+# Disable SSL warnings (only for testing, not recommended in production)
+requests.packages.urllib3.disable_warnings()
+
+# -------------------------
+# 1) LOGIN TO F5
+# -------------------------
+def login_to_f5():
+    f5_host = input("Enter F5 management IP/hostname: ")
+    username = input("Enter your username: ")
+    password = input("Enter your password: ")
+
+    url = f"https://{f5_host}/mgmt/shared/authn/login"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+    }
+
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 200:
+        print("✅ Successfully logged in!")
+        token = response.json().get("token", {}).get("token")
+        return token, f5_host
+    else:
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        return None, None
+
+# -------------------------
+# 2) GET WIDE IPS via cURL
+# -------------------------
+def get_wide_ips_via_curl(f5_host, token):
+    """
+    Runs a cURL command in a subprocess to fetch GTM Wide IPs, then returns
+    the parsed JSON 'items' array. This bypasses python-requests completely.
+    """
+    # Construct the cURL command exactly as you tested it on the CLI
+    # Note: -s = silent, -k = skip SSL certificate verification
+    curl_cmd = [
+        "curl",
+        "-sk",  # silent + insecure SSL
+        "-H", f"X-F5-Auth-Token: {token}",
+        f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+    ]
+
+    try:
+        # Run the command; capture the output (stdout)
+        output = subprocess.check_output(curl_cmd)
+        # Decode from bytes to string
+        output_str = output.decode("utf-8", errors="replace")
+
+        # Attempt to parse JSON
+        data = json.loads(output_str)
+        # Return 'items' if it exists
+        return data.get("items", [])
+    except subprocess.CalledProcessError as cpe:
+        print("❌ Error calling cURL:", cpe)
+        return []
+    except json.JSONDecodeError as je:
+        print("❌ Error parsing JSON:", je)
+        return []
+
+# -------------------------
+# 3) GET POOL DETAILS (via Requests)
+# -------------------------
+def get_pool_details(f5_host, token, pool_name):
+    """
+    Fetches pool details for a given pool name using python-requests.
+    This uses ?$expand=all-properties. If that fails with 400,
+    try '?expandSubcollections=true' or '?$expand=full' or replicate cURL here too.
+    """
+    url = f"https://{f5_host}/mgmt/tm/gtm/pool/a/{pool_name}?$expand=all-properties"
+    headers = {
+        "X-F5-Auth-Token": token,
+        "Accept": "*/*",
+        "Accept-Encoding": "identity"  # optional to disable compression
+    }
+
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"⚠️ Failed to fetch details for pool '{pool_name}' - HTTP {response.status_code}")
+        return None
+
+# -------------------------
+# 4) EXTRACT POOL MEMBERS
+# -------------------------
+def extract_pool_members(pool_details):
+    """
+    Example: a pool member might be named: "10.160.224.64:10_160_224_64_445"
+    We'll split on ':' to isolate the IP portion from the port-like suffix.
+    """
+    members = []
+    for member in pool_details.get("members", []):
+        raw_address = member["name"]  # e.g. "10.160.224.64:10_160_224_64_445"
+        ip_address = raw_address.split(":")[0]
+        member_order = member.get("member-order", "Unknown")
+
+        members.append({
+            "raw": raw_address,
+            "ip": ip_address,
+            "order": member_order
+        })
+    return members
+
+# -------------------------
+# 5) MAIN: COLLECT WIDE IP + POOL DATA
+# -------------------------
+def collect_wide_ip_data():
+    token, f5_host = login_to_f5()
+    if not token:
+        return  # Stop if login failed
+
+    # Get wide IPs via cURL approach
+    wide_ips = get_wide_ips_via_curl(f5_host, token)
+
+    wide_ip_data = []
+    for wide_ip in wide_ips:
+        wide_ip_entry = {
+            "name": wide_ip["name"],
+            "pool_lb_mode": wide_ip.get("pool-lb-mode", "Unknown"),  # Load balancing method
+            "pools": []
+        }
+
+        # Each wide_ip can list multiple "pools"
+        for pool in wide_ip.get("pools", []):
+            pool_name = pool["name"]
+            pool_order = pool.get("order", "Unknown")
+
+            # Fetch details for this pool
+            pool_details = get_pool_details(f5_host, token, pool_name)
+            if pool_details:
+                pool_entry = {
+                    "name": pool_name,
+                    "order": pool_order,
+                    "fallback_method": pool_details.get("fallback", "Unknown"),
+                    "load_balancing_mode": pool_details.get("load-balancing-mode", "Unknown"),
+                    "members": extract_pool_members(pool_details)
+                }
+                wide_ip_entry["pools"].append(pool_entry)
+
+        wide_ip_data.append(wide_ip_entry)
+
+    # Save data to JSON file
+    with open("f5_wide_ip_data.json", "w") as f:
+        json.dump(wide_ip_data, f, indent=4)
+
+    print("✅ Data successfully saved in f5_wide_ip_data.json")
+
+# -------------------------
+# 6) RUN THE SCRIPT
+# -------------------------
+if __name__ == "__main__":
+    collect_wide_ip_data()
+
+
+
+
+
+
+
+
+
+
+
+
+import requests
 
 def get_wide_ips(f5_host, token):
     """
