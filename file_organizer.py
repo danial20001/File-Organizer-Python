@@ -1,4 +1,50 @@
 import requests
+
+def get_wide_ips(f5_host, token):
+    """
+    Fetches Wide IPs from F5 GTM using the iControl REST API.
+    Includes adjustments to avoid issues with URL encoding and compression.
+    """
+    # 1. Construct the URL with the literal $expand
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+
+    # 2. Create a requests Session to manage headers and connection pooling
+    with requests.Session() as session:
+        # 3a. Disable compression (in case F5 does not handle it well)
+        session.headers["Accept-Encoding"] = "identity"
+        
+        # 3b. Set other headers needed
+        session.headers.update({
+            "X-F5-Auth-Token": token,
+            "User-Agent": "curl/7.29.0",  # Mimic curl's UA (optional)
+            "Accept": "*/*"
+            # NOTE: Do not override 'Host' unless absolutely necessary
+        })
+
+        # Debugging prints
+        print(f"🔍 Requesting URL: {url}")
+        print(f"🔍 Headers: {session.headers}")
+
+        # Disable SSL verification warnings for demonstration (you may want to handle certs properly)
+        requests.packages.urllib3.disable_warnings()
+
+        # 4. Send the GET request
+        response = session.get(url, verify=False)
+
+        # Debugging prints
+        print(f"📡 Response Status Code: {response.status_code}")
+        print(f"📡 Response Text: {response.text}")
+
+        # 5. Return items (Wide IPs) or empty list on failure
+        if response.status_code == 200:
+            return response.json().get("items", [])
+        else:
+            print(f"❌ Failed to fetch Wide IPs: HTTP {response.status_code}")
+            return []
+
+
+
+import requests
 from urllib.parse import quote
 
 def get_wide_ips(f5_host, token):
