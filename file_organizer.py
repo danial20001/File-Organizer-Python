@@ -3,6 +3,173 @@ import json
 import subprocess
 import time
 
+# Disable SSL warnings (only for testing, not recommended in production)
+requests.packages.urllib3.disable_warnings()
+
+# Global variables for token and credential management
+GLOBAL_F5_HOST = None
+GLOBAL_USERNAME = None
+GLOBAL_PASSWORD = None
+GLOBAL_TOKEN = None
+GLOBAL_TOKEN_TIME = None
+
+# Constants for token validity and refresh threshold
+TOKEN_VALIDITY_SECONDS = 15 * 60   # 15 minutes
+REFRESH_BEFORE_EXPIRY = 3 * 60       # refresh 3 minutes before expiry
+
+# Function to log in and get an authentication token.
+# Also stores the credentials and token timestamp globally.
+def login_to_f5(f5_host=None, username=None, password=None):
+    global GLOBAL_F5_HOST, GLOBAL_USERNAME, GLOBAL_PASSWORD, GLOBAL_TOKEN, GLOBAL_TOKEN_TIME
+
+    # Prompt for credentials only if not already provided.
+    if f5_host is None:
+        f5_host = input("Enter F5 management IP/hostname: ")
+    if username is None:
+        username = input("Enter your username: ")
+    if password is None:
+        password = input("Enter your password: ")
+
+    # Store credentials globally (so they can be re-used on token refresh).
+    GLOBAL_F5_HOST = f5_host
+    GLOBAL_USERNAME = username
+    GLOBAL_PASSWORD = password
+
+    url = f"https://{f5_host}/mgmt/shared/authn/login"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+    }
+
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 200:
+        token = response.json().get("token", {}).get("token")
+        GLOBAL_TOKEN = token
+        GLOBAL_TOKEN_TIME = time.time()  # Record when the token was obtained.
+        print("✅ Successfully logged in!")
+        return token, f5_host
+    else:
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        return None, None
+
+# Function to check if the token is near expiry.
+# If the token is older than (15 minutes - 3 minutes), then refresh it.
+def check_token():
+    global GLOBAL_TOKEN, GLOBAL_TOKEN_TIME
+    if GLOBAL_TOKEN is None or GLOBAL_TOKEN_TIME is None:
+        return False
+    elapsed = time.time() - GLOBAL_TOKEN_TIME
+    if elapsed >= (TOKEN_VALIDITY_SECONDS - REFRESH_BEFORE_EXPIRY):
+        print("Token is nearing expiry; refreshing token now...")
+        # Re-login using stored credentials
+        login_to_f5(GLOBAL_F5_HOST, GLOBAL_USERNAME, GLOBAL_PASSWORD)
+        return True
+    return True
+
+# Function to fetch all Wide IPs using curl via subprocess.
+def get_wide_ips(f5_host, token):
+    # Ensure the token is fresh before calling the API.
+    check_token()
+    token = GLOBAL_TOKEN  # Use the (possibly refreshed) global token.
+    url = f"https://{f5_host}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+    header = f"X-F5-Auth-Token: {token}"
+    cmd = ["curl", "-k", "-H", header, url]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        return data.get("items", [])
+    except subprocess.CalledProcessError as e:
+        print("Curl command failed:", e.stderr)
+    except Exception as e:
+        print("Error processing JSON response:", e)
+    
+    return []
+
+# Function to fetch pool details for a given pool name using curl via subprocess.
+def get_pool_details(f5_host, token, pool_name):
+    check_token()
+    token = GLOBAL_TOKEN  # Use the refreshed token.
+    url = f"https://{f5_host}/mgmt/tm/gtm/pool/a/{pool_name}?$expand=all-properties"
+    header = f"X-F5-Auth-Token: {token}"
+    cmd = ["curl", "-k", "-H", header, url]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        return data
+    except subprocess.CalledProcessError as e:
+        print(f"Curl command failed for pool '{pool_name}':", e.stderr)
+    except Exception as e:
+        print("Error processing JSON response:", e)
+    
+    return None
+
+# Function to extract pool members (extracting the IP before the colon)
+def extract_pool_members(pool_details):
+    members = []
+    for member in pool_details.get("members", []):
+        raw_address = member["name"]  # Example: "10.160.224.64:10_160_224_64_445"
+        ip_address = raw_address.split(":")[0]  # Extract only the IP part
+        member_order = member.get("member-order", "Unknown")
+        members.append({
+            "raw": raw_address,
+            "ip": ip_address,
+            "order": member_order
+        })
+    return members
+
+# Main function to gather Wide IP and Pool data.
+def collect_wide_ip_data():
+    token, f5_host = login_to_f5()
+    if not token:
+        return
+
+    wide_ips = get_wide_ips(f5_host, token)
+    wide_ip_data = []
+
+    for wide_ip in wide_ips:
+        wide_ip_entry = {
+            "name": wide_ip["name"],
+            "pool_lb_mode": wide_ip.get("pool-lb-mode", "Unknown"),
+            "pools": []
+        }
+
+        for pool in wide_ip.get("pools", []):
+            pool_name = pool["name"]
+            pool_order = pool.get("order", "Unknown")
+            pool_details = get_pool_details(f5_host, token, pool_name)
+
+            if pool_details:
+                pool_entry = {
+                    "name": pool_name,
+                    "order": pool_order,
+                    "fallback_method": pool_details.get("fallback", "Unknown"),
+                    "load_balancing_mode": pool_details.get("load-balancing-mode", "Unknown"),
+                    "members": extract_pool_members(pool_details)
+                }
+                wide_ip_entry["pools"].append(pool_entry)
+
+        wide_ip_data.append(wide_ip_entry)
+
+    # Save the gathered data to a JSON file in the same directory.
+    with open("f5_wide_ip_data.json", "w") as f:
+        json.dump(wide_ip_data, f, indent=4)
+
+    print("✅ Data successfully saved in f5_wide_ip_data.json")
+
+# Run the script
+if __name__ == "__main__":
+    collect_wide_ip_data()
+
+============================
+import requests
+import json
+import subprocess
+import time
+
 # Global variables for token management
 GLOBAL_F5_HOST = None
 GLOBAL_USERNAME = None
