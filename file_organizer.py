@@ -4,6 +4,7 @@ import requests
 import time
 import signal
 import sys
+import os
 
 # Disable SSL warnings (only for testing, not recommended in production)
 requests.packages.urllib3.disable_warnings()
@@ -17,52 +18,36 @@ class F5TokenManager:
         self.username = username
         self.password = password
         self.token = None
-        self.refresh_token = None
         self.last_refresh = 0
         self.refresh_interval = 5 * 60  # Refresh token every 5 minutes
         self.login()
 
     def login(self):
-        url = f"https://{self.f5_host}/mgmt/shared/authn/login"
+        url = f"https://{self.f5_host}/mgmt/tm/auth/user"
+        auth = (self.username, self.password)
         headers = {"Content-Type": "application/json"}
-        payload = {
-            "username": self.username,
-            "password": self.password,
-            "loginProviderName": "tmos"
-        }
-
-        response = requests.post(url, headers=headers, json=payload, verify=False)
-        if response.status_code == 200:
-            data = response.json()
-            self.token = data["token"]["token"]
-            self.refresh_token = data["token"].get("refreshToken")
-            self.last_refresh = time.time()
-            print("✅ Successfully logged in!")
-        else:
-            print(f"❌ Login failed: {response.status_code} - {response.text}")
-            raise Exception("Login failed")
-
-    def refresh(self):
-        """Refresh the access token"""
-        url = f"https://{self.f5_host}/mgmt/shared/authn/exchange"
-        headers = {
-            "Content-Type": "application/json",
-            "X-F5-Auth-Token": self.token
-        }
         
         try:
-            response = requests.post(url, headers=headers, verify=False)
+            # First request to get the auth token
+            response = requests.get(url, auth=auth, headers=headers, verify=False)
             if response.status_code == 200:
-                data = response.json()
-                self.token = data["token"]["token"]
-                self.last_refresh = time.time()
-                print("✅ Token refreshed successfully")
+                self.token = response.headers.get('X-F5-Auth-Token')
+                if self.token:
+                    self.last_refresh = time.time()
+                    print("✅ Successfully logged in!")
+                else:
+                    raise Exception("No auth token in response")
             else:
-                print("❌ Token refresh failed, performing new login")
-                self.login()
+                print(f"❌ Login failed: {response.status_code} - {response.text}")
+                raise Exception("Login failed")
         except Exception as e:
-            print(f"Error during token refresh: {e}")
-            self.login()
+            print(f"❌ Login error: {str(e)}")
+            raise
+
+    def refresh(self):
+        """Refresh by performing a new login"""
+        print("Refreshing token...")
+        self.login()
 
     def get_token(self):
         """Get the current token, refreshing if necessary"""
@@ -118,22 +103,33 @@ def extract_pool_members(pool_details):
 
 def save_data():
     """Save the collected data to file"""
-    if collected_data:
-        with open("f5_wide_ip_data.json", "w") as f:
-            json.dump(collected_data, f, indent=4)
-        print("\n✅ Data saved to f5_wide_ip_data.json")
-    else:
-        print("\n❌ No data collected yet")
+    filename = "f5_wide_ip_data.json"
+    try:
+        # Remove the file if it exists
+        if os.path.exists(filename):
+            os.remove(filename)
+            
+        if collected_data:
+            with open(filename, "w") as f:
+                json.dump(collected_data, f, indent=4)
+            print(f"\n✅ Data saved to {filename}")
+        else:
+            print("\n❌ No data collected yet")
+    except Exception as e:
+        print(f"\n❌ Error saving data: {str(e)}")
 
 def signal_handler(signum, frame):
     """Handle interrupt signal (Ctrl+C)"""
     print("\n\nInterrupt received! Saving collected data...")
-    save_data()
-    sys.exit(0)
+    try:
+        save_data()
+    finally:
+        sys.exit(0)
 
 def collect_wide_ip_data():
     # Set up the interrupt handler
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
     f5_host = input("Enter F5 management IP/hostname: ")
     username = input("Enter your username: ")
