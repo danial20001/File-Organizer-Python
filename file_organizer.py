@@ -2,6 +2,173 @@ import requests
 import json
 import subprocess
 import time
+import sys
+
+# Disable SSL warnings (only for testing; not recommended for production)
+requests.packages.urllib3.disable_warnings()
+
+# Global variables
+TOKEN = None
+F5_HOST = None
+TOKEN_TIMESTAMP = None
+
+# Constants for token lifetime.
+# TOKEN_EXPIRY is the max lifetime on the F5 side (e.g., 1200 seconds = 20 minutes)
+# REFRESH_THRESHOLD is our testing threshold; set to 60 seconds (1 minute) for quick testing.
+TOKEN_EXPIRY = 1200  
+REFRESH_THRESHOLD = 60  # For testing purposes; change to 900 (15 minutes) later if needed.
+
+def get_new_token():
+    global TOKEN, F5_HOST, TOKEN_TIMESTAMP
+
+    if not F5_HOST:
+        F5_HOST = input("Enter F5 management IP/hostname: ")
+    # For automatic re‑login, you can set these in your environment instead of using input().
+    username = input("Enter your username: ")
+    password = input("Enter your password: ")
+
+    url = f"https://{F5_HOST}/mgmt/shared/authn/login"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "username": username,
+        "password": password,
+        "loginProviderName": "tmos"
+        # You could try adding an "expiresIn" parameter if your F5 supports it.
+    }
+
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 200:
+        TOKEN = response.json().get("token", {}).get("token")
+        TOKEN_TIMESTAMP = time.time()  # Record the time when the token was obtained
+        print(f"✅ Successfully logged in! New token obtained at {TOKEN_TIMESTAMP:.2f}")
+    else:
+        print(f"❌ Login failed: {response.status_code} - {response.text}")
+        TOKEN = None
+
+def refresh_token_if_needed():
+    global TOKEN, TOKEN_TIMESTAMP
+    current_time = time.time()
+
+    if TOKEN_TIMESTAMP is None:
+        print("DEBUG: No token timestamp found. Obtaining new token...")
+        get_new_token()
+        return
+
+    elapsed = current_time - TOKEN_TIMESTAMP
+    print(f"DEBUG: Current time: {current_time:.2f}, Token timestamp: {TOKEN_TIMESTAMP:.2f}, Elapsed: {elapsed:.2f} seconds")
+    if elapsed > REFRESH_THRESHOLD:
+        print("🔄 Token older than threshold (1 minute). Refreshing token...")
+        get_new_token()
+    else:
+        print("✅ Token is still valid.")
+
+def run_curl_command(command):
+    """
+    Run a command via an interactive login shell.
+    Assumes that refresh_token_if_needed() has been called before constructing the command.
+    """
+    full_cmd = ["bash", "-l", "-c", command]
+    try:
+        print("Running command:", command)
+        result = subprocess.run(full_cmd, capture_output=True, text=True, check=True)
+        if result.stderr:
+            print("stderr:", result.stderr)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        print("Command failed with error:", e.stderr)
+        return None
+
+def get_wide_ips():
+    refresh_token_if_needed()
+    url = f"https://{F5_HOST}/mgmt/tm/gtm/wideip/a?$expand=all-properties"
+    command = f'curl -vk -H "X-F5-Auth-Token: {TOKEN}" "{url}"'
+    output = run_curl_command(command)
+    if not output:
+        print("No output received for wide IPs.")
+        return []
+    try:
+        data = json.loads(output)
+        return data.get("items", [])
+    except json.JSONDecodeError as e:
+        print("Error decoding JSON for wide IPs:", e)
+        return []
+
+def get_pool_details(pool_name):
+    refresh_token_if_needed()
+    url = f"https://{F5_HOST}/mgmt/tm/gtm/pool/a/{pool_name}?$expand=all-properties"
+    command = f'curl -vk -H "X-F5-Auth-Token: {TOKEN}" "{url}"'
+    output = run_curl_command(command)
+    if not output:
+        print(f"No output received for pool '{pool_name}'.")
+        return None
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON for pool '{pool_name}':", e)
+        return None
+
+def extract_pool_members(pool_details):
+    members = []
+    for member in pool_details.get("members", []):
+        raw_address = member.get("name", "")
+        ip_address = raw_address.split(":")[0]
+        member_order = member.get("member-order", "missing")
+        members.append({
+            "raw": raw_address,
+            "ip": ip_address,
+            "order": member_order
+        })
+    return members
+
+def save_data(wide_ip_data):
+    with open("f5_wide_ip_data.json", "w") as f:
+        json.dump(wide_ip_data, f, indent=4)
+    print("✅ Data successfully saved in f5_wide_ip_data.json")
+
+def collect_wide_ip_data():
+    # Get initial token
+    get_new_token()
+    wide_ips = get_wide_ips()
+    if not wide_ips:
+        print("No Wide IPs were fetched.")
+        return
+
+    wide_ip_data = []
+    try:
+        for wide_ip in wide_ips:
+            wide_ip_entry = {
+                "name": wide_ip.get("name", "missing"),
+                "pool_lb_mode": wide_ip.get("pool-lb-mode", "missing"),
+                "pools": []
+            }
+            for pool in wide_ip.get("pools", []):
+                pool_name = pool.get("name")
+                print(f"Fetching details for pool: {pool_name}")
+                pool_details = get_pool_details(pool_name)
+                if pool_details:
+                    pool_entry = {
+                        "name": pool_name,
+                        "fallback_method": pool_details.get("fallback", "missing"),
+                        "load_balancing_mode": pool_details.get("load-balancing-mode", "missing"),
+                        "members": extract_pool_members(pool_details)
+                    }
+                    wide_ip_entry["pools"].append(pool_entry)
+            wide_ip_data.append(wide_ip_entry)
+    except KeyboardInterrupt:
+        print("⚠️ KeyboardInterrupt detected. Saving data collected so far...")
+        save_data(wide_ip_data)
+        sys.exit(0)
+
+    save_data(wide_ip_data)
+
+if __name__ == "__main__":
+    collect_wide_ip_data()
+
+-------------
+import requests
+import json
+import subprocess
+import time
 
 # Disable SSL warnings (only for testing, not recommended in production)
 requests.packages.urllib3.disable_warnings()
