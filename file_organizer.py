@@ -1,4 +1,8 @@
-                            # UPDATED: Extract Pool Name
+print(f"Storing to DB - VIP: {vs['name']}, Pool Name: {pool_name}, Pool Members: {pool_members}")
+
+
+
+# UPDATED: Extract Pool Name
                             pool_name = vs.get('pool', 'N/A')
                             pool_members = "N/A"
                             
