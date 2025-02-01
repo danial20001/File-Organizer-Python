@@ -1,3 +1,23 @@
+                            # UPDATED: Extract Pool Name
+                            pool_name = vs.get('pool', 'N/A')
+                            pool_members = "N/A"
+                            
+                            if pool_name != "N/A":
+                                try:
+                                    # Fetch Pool Members - UPDATED
+                                    pool_response = requests.get(
+                                        f"https://{device_ip}/mgmt/tm/ltm/pool/{pool_name}/members", 
+                                        verify=False, headers={'Content-Type': 'application/json'},
+                                        auth=(credentials['username'], credentials['password']))
+                                    pool_json_response = pool_response.json()
+                                    pool_members = ", ".join(
+                                        [member['name'] for member in pool_json_response.get('items', [])]
+                                    ) if pool_json_response.get('items') else "None"
+                                except:
+                                    pool_members = "Error Fetching"
+
+
+
 import json
 import subprocess
 import requests
