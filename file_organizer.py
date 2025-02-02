@@ -1,3 +1,12 @@
+# UPDATED: Extract Pool Names
+                            pool_names = vs.get('pool', 'N/A')
+                            if isinstance(pool_names, str):
+                                pool_names = [pool_names]
+                            
+                            for pool_name in pool_names:
+                                pool_name = pool_name.split('/')[-1]
+                                pool_members = "N/A"
+
 # Extract Pool Name - Minimal Change
 pools = vs.get('pool', 'N/A')
 pool_members = "N/A"
