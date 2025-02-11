@@ -1,6 +1,42 @@
 def rule_fallback_return_to_dns(wideip_entry: dict):
     """
     Rule:
+    If at least one pool in the WideIP has fallbackMode 'return-to-dns',
+    then check ALL pools. If none of the pool member IPs (from any pool)
+    are found in the WideIP's A‑Record list, return a critical flag.
+    
+    Returns:
+        (flag, comment) tuple if the rule is triggered, otherwise None.
+    """
+    a_record_ips = wideip_entry.get("A-Record", [])
+    pools = wideip_entry.get("pools", [])
+    
+    # Check if any pool has fallbackMode "return-to-dns"
+    if not any(pool.get("fallbackMode", "").lower() == "return-to-dns" for pool in pools):
+        # No pool is using return-to-dns, so rule not applicable.
+        return None
+
+    # If at least one pool uses return-to-dns, check ALL pool members from every pool.
+    all_members = []
+    for pool in pools:
+        all_members.extend(pool.get("members", []))
+    
+    # Compare the extracted IPs against the A‑Record list.
+    if not any(extract_ip(member) in a_record_ips for member in all_members):
+        return ("Critical", 
+                "At least one pool has fallbackMode 'return-to-dns', but no pool member IP from any pool "
+                "is found in the A‑Record")
+    
+    # Otherwise, the condition is satisfied.
+    return None
+
+
+
+
+
+def rule_fallback_return_to_dns(wideip_entry: dict):
+    """
+    Rule:
     If any pool in the WideIP has fallbackMode 'return-to-dns'
     but none of its pool member IPs are found in the WideIP's A-Record,
     flag this as Critical.
