@@ -1,3 +1,53 @@
+FLAG_PRIORITY = {
+    "Critical": 1,
+    "Out of Standard": 2,
+    "Low Impact": 3,
+    # Add other flag types here as needed.
+}
+
+def apply_rules(wideip_entry: dict):
+    """
+    Runs all rule functions on the wideip_entry.
+    If multiple rules trigger, choose the main flag based on priority
+    (Critical is highest) and combine comments as a numbered list.
+    """
+    triggered_rules = []
+    for rule in RULES:
+        result = rule(wideip_entry)
+        if result is not None:
+            triggered_rules.append(result)  # result is a (flag, comment) tuple
+
+    if triggered_rules:
+        # Determine the main flag by selecting the one with the highest priority.
+        main_flag = min(
+            (flag for flag, _ in triggered_rules),
+            key=lambda f: FLAG_PRIORITY.get(f, 99)
+        )
+
+        # Combine comments into a numbered list.
+        comments = []
+        for idx, (_, comment) in enumerate(triggered_rules, start=1):
+            comments.append(f"{idx}) {comment}")
+            
+        wideip_entry["flag"] = main_flag
+        wideip_entry["comment"] = "; ".join(comments)
+
+def rule_missing_description(wideip_entry: dict):
+    """
+    Rule:
+    If the WideIP description is missing or empty, flag this as Out of Standard.
+    
+    Returns:
+        (flag, comment) tuple if the rule is triggered, otherwise None.
+    """
+    description = wideip_entry.get("description", "").strip()
+    if not description:
+        return ("Out of Standard", "Description is missing for the WideIP")
+    return None
+============
+
+
+
 def rule_no_fallback_none(wideip_entry: dict):
     """
     Rule:
