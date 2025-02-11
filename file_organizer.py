@@ -1,3 +1,26 @@
+def load_a_records(file_path: str) -> dict:
+    a_records = defaultdict(list)
+    # Adjust regex to allow for extra spaces and leading/trailing whitespace
+    pattern = re.compile(r'^\s*(?P<wip>\S+)\s+\d+\s+IN\s+A\s+(?P<ip>\S+)', re.IGNORECASE)
+    
+    try:
+        with open(file_path, 'r') as f:
+            for line in f:
+                match = pattern.search(line)
+                if match:
+                    # Remove any trailing dot, strip extra spaces, and normalize to lower case
+                    wip = match.group('wip').strip().rstrip('.').lower()
+                    ip = match.group('ip')
+                    if ip not in a_records[wip]:
+                        a_records[wip].append(ip)
+                    # Optionally, print for debugging:
+                    # print(f"Loaded A record: {wip} -> {ip}")
+    except Exception as e:
+        print(f"Error loading A records from {file_path}: {e}")
+    return a_records
+
+
+================
 A_RECORDS_MAPPING = {}
 def load_a_records(file_path: str) -> dict:
     """
