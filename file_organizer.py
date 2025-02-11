@@ -1,3 +1,47 @@
+def extract_ip(pool_member: str) -> str:
+    """
+    Extract the IP address from a pool member string.
+    
+    If the string contains a colon, try the following:
+      - If the part before the colon is a valid dotted IP, return it.
+      - Otherwise, assume the part after the colon is underscore separated,
+        split it and join the first four segments with dots.
+    
+    If no colon is found and underscores are present, try to split by underscore.
+    Otherwise, return the pool_member as-is.
+    """
+    # Case 1: Pool member contains a colon
+    if ":" in pool_member:
+        parts = pool_member.split(":", 1)
+        candidate_ip = parts[0]
+        # Check if candidate_ip is in dotted format (e.g., "171.132.23.23")
+        if re.match(r'^\d{1,3}(?:\.\d{1,3}){3}$', candidate_ip):
+            return candidate_ip
+        else:
+            # Assume the part after the colon is underscore separated like "171_132_23_23_443"
+            underscore_parts = parts[1].split("_")
+            if len(underscore_parts) >= 5:
+                # Join the first four parts to form the IP
+                return ".".join(underscore_parts[:4])
+            else:
+                # Fallback: return the part after colon (or candidate_ip)
+                return parts[1]
+    
+    # Case 2: No colon but the string might be underscore separated
+    if "_" in pool_member:
+        underscore_parts = pool_member.split("_")
+        if len(underscore_parts) >= 5:
+            return ".".join(underscore_parts[:4])
+        else:
+            return ".".join(underscore_parts)
+    
+    # Case 3: Otherwise, return the pool_member as is
+    return pool_member
+
+
+
+
+
 def load_a_records(file_path: str) -> dict:
     a_records = defaultdict(list)
     # Adjust regex to allow for extra spaces and leading/trailing whitespace
