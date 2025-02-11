@@ -1,4 +1,39 @@
-                    import re  # Ensure re is imported (it is already at the top)
+A_RECORDS_MAPPING = {}
+def load_a_records(file_path: str) -> dict:
+    """
+    Loads the A records from the specified file.
+    Expected line format (with extra spaces possible):
+      <wipname>   45 IN A  <ip>
+    This function returns a dictionary mapping wipname to a list of IP addresses.
+    """
+    a_records = defaultdict(list)
+    # Regex breakdown:
+    #   ^(?P<wip>\S+)\s+  : Start of line, capture the wip name (non-space) followed by one or more spaces.
+    #   \d+\s+           : A number (could be 45 or something else) followed by spaces.
+    #   IN\s+A\s+        : The literal string "IN A" with spaces around.
+    #   (?P<ip>\S+)      : Capture the IP (non-space characters).
+    pattern = re.compile(r'^(?P<wip>\S+)\s+\d+\s+IN\s+A\s+(?P<ip>\S+)', re.IGNORECASE)
+    
+    try:
+        with open(file_path, 'r') as f:
+            for line in f:
+                match = pattern.search(line)
+                if match:
+                    wip = match.group('wip')
+                    ip = match.group('ip')
+                    # Avoid duplicates if necessary
+                    if ip not in a_records[wip]:
+                        a_records[wip].append(ip)
+    except Exception as e:
+        print(f"Error loading A records from {file_path}: {e}")
+    return a_records
+
+wideip_entry["A-Record"] = A_RECORDS_MAPPING.get(wideip_name, [])
+
+
+
+
+import re  # Ensure re is imported (it is already at the top)
                     env_map = {'p': 'Production', 't': 'Test', 's': 'UAT'}
                     env_set = set()
 
