@@ -1,3 +1,26 @@
+def rule_no_fallback_none(wideip_entry: dict):
+    """
+    Rule:
+    If none of the pools in the WideIP has fallbackMode set to 'none',
+    flag this as Critical.
+
+    Returns:
+        (flag, comment) tuple if the rule is triggered, otherwise None.
+    """
+    pools = wideip_entry.get("pools", [])
+    
+    # Check if at least one pool has fallbackMode equal to 'none'
+    if not any(pool.get("fallbackMode", "").lower() == "none" for pool in pools):
+        return ("Critical", "None of the pools has fallbackMode set to 'none'")
+    
+    return None
+
+
+
+
+
+
+
 def rule_fallback_return_to_dns(wideip_entry: dict):
     """
     Rule:
