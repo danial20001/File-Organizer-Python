@@ -1,3 +1,57 @@
+def rule_fallback_return_to_dns(wideip_entry: dict):
+    """
+    Rule:
+    If any pool in the WideIP has fallbackMode 'return-to-dns'
+    but none of its pool member IPs are found in the WideIP's A-Record,
+    flag this as Critical.
+    
+    Returns:
+        (flag, comment) tuple if rule is triggered, else None.
+    """
+    a_record_ips = wideip_entry.get("A-Record", [])
+    for pool in wideip_entry.get("pools", []):
+        if pool.get("fallbackMode", "").lower() == "return-to-dns":
+            pool_members = pool.get("members", [])
+            # Ensure we compare using extracted IP addresses
+            match_found = any(extract_ip(pm) in a_record_ips for pm in pool_members)
+            if not match_found:
+                return ("Critical", "Pool fallbackMode is 'return-to-dns' but no pool member IP is found in the A-Record")
+    return None
+
+# List of rules. In the future, add more functions to this list.
+RULES = [
+    rule_fallback_return_to_dns,
+    # rule_another,  # Add more rules here.
+]
+
+def apply_rules(wideip_entry: dict):
+    """
+    Runs all the rule functions against the wideip_entry.
+    Accumulates any flags and comments, and adds them to the entry.
+    """
+    flags = []
+    comments = []
+    for rule in RULES:
+        result = rule(wideip_entry)
+        if result:
+            flags.append(result[0])
+            comments.append(result[1])
+    # Add new keys to the entry. You can change the key names as needed.
+    wideip_entry["flag"] = flags
+    wideip_entry["comment"] = "; ".join(comments)
+    
+############################
+# END OF RULE SECTION      #
+############################
+
+
+
+
+
+
+
+
+
 def extract_ip(pool_member: str) -> str:
     """
     Extract the IP address from a pool member string.
