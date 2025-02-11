@@ -1,3 +1,26 @@
+                    import re  # Ensure re is imported (it is already at the top)
+                    env_map = {'p': 'Production', 't': 'Test', 's': 'UAT'}
+                    env_set = set()
+
+                    # Check each pool's name for the environment letter
+                    for pool in wideip_entry['pools']:
+                        pool_name = pool.get("pool_name", "")
+                        # Look for an underscore, a single letter (p, t, or s), then another underscore.
+                        match = re.search(r'_(?P<env>[pts])_', pool_name, re.IGNORECASE)
+                        if match:
+                            env_set.add(match.group("env").lower())
+
+                    if not env_set:
+                        wideip_entry["environment"] = "Missing"
+                    elif len(env_set) == 1:
+                        # Only one unique environment letter found; map it accordingly.
+                        env_letter = env_set.pop()
+                        wideip_entry["environment"] = env_map.get(env_letter, "Unknown")
+                    else:
+                        # More than one unique environment letter found among the pools.
+                        wideip_entry["environment"] = "Non Standard"
+                    # --- End of new code ---
+========
 def get_f5_based_vips(credentials: dict, device_list: list) -> None:
     for f5_device in device_list:
         device = f5_device['device']
