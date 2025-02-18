@@ -1,3 +1,147 @@
+def apply_rules(wideip_entry: dict):
+    """
+    Apply all rules, then:
+      - Pick the worst severity (i.e. highest priority)
+      - Concatenate all rule messages (numbered) into a single comment
+      - Do not duplicate the flag; only the worst severity is kept.
+    """
+    rule_results = []
+    for rule in RULES:
+        result = rule(wideip_entry)
+        if result:
+            rule_results.append(result)  # Each result is a tuple (severity, comment)
+
+    if not rule_results:
+        wideip_entry["flag"] = "OK"
+        wideip_entry["comment"] = ""
+        return
+
+    # Define severity rankings.
+    # Adjust these values if you introduce new severity levels.
+    severity_mapping = {
+        "critical": 3,
+        "medium": 2,
+        "out of standards": 1
+    }
+
+    # Determine the highest severity (worst flag)
+    worst_severity = None
+    worst_severity_rank = -1
+    for severity, comment in rule_results:
+        rank = severity_mapping.get(severity.lower(), 0)
+        if rank > worst_severity_rank:
+            worst_severity_rank = rank
+            worst_severity = severity
+
+    # Build a combined comment, numbering each message
+    comments = []
+    for idx, (severity, comment) in enumerate(rule_results, 1):
+        comments.append(f"{idx}) {comment}")
+
+    wideip_entry["flag"] = worst_severity
+    wideip_entry["comment"] = "; ".join(comments)
+
+
+def rule_single_pool(wideip_entry: dict):
+    """
+    Applies when the WideIP has a single pool.
+    
+    For wideip poolLbMode (round robin or global availability):
+      - If the pool’s loadBalancingMode is round robin:
+            fallbackMode must be return-to-dns, and the A-Record should include all members.
+      - If the pool’s loadBalancingMode is global availability:
+            fallbackMode must be return-to-dns, and the A-Record should include only the primary member.
+    """
+    pools = wideip_entry.get("pools", [])
+    if len(pools) != 1:
+        return None  # Not applicable for multiple pools
+    
+    pool = pools[0]
+    pool_lb = pool.get("loadBalancingMode", "").lower()
+    fallback = pool.get("fallbackMode", "").lower()
+    
+    if fallback != "return-to-dns":
+        return ("Critical", f"Single pool '{pool.get('pool_name', '')}' must have fallbackMode 'return-to-dns' (found '{fallback}')")
+    
+    a_record_ips = set(wideip_entry.get("A-Record", []))
+    members = pool.get("members", [])
+    
+    if pool_lb == "round robin":
+        # A‑Record should include all pool member IPs
+        expected_ips = {extract_ip(m) for m in members}
+        if expected_ips != a_record_ips:
+            return ("Critical", "For a single pool with round robin load balancing, the A‑Record must include all pool members")
+    
+    elif pool_lb == "global availability":
+        # A‑Record should include only the primary member (assumed to be the first)
+        if members:
+            primary_ip = extract_ip(members[0])
+            if a_record_ips != {primary_ip}:
+                return ("Critical", "For a single pool with global availability, the A‑Record must include only the primary pool member")
+    
+    return None
+
+
+def rule_multiple_pools_global_availability(wideip_entry: dict):
+    """
+    Applies when the WideIP uses global availability and has multiple pools.
+    
+    Expected behavior:
+      - For multiple pools:
+          * All pools except the LAST must have fallbackMode 'none'
+          * The LAST pool must have fallbackMode 'return-to-dns'
+      - The A‑Record should be based on the primary pool:
+          * If the primary pool uses round robin: include all its members
+          * If it uses global availability: include only its primary member
+    """
+    pools = wideip_entry.get("pools", [])
+    if len(pools) < 2:
+        return None  # Not applicable for single-pool scenarios
+    
+    wideip_lb = wideip_entry.get("poollbMode", "").lower()
+    if wideip_lb != "global availability":
+        return None  # This rule applies only when wideip poolLbMode is global availability
+    
+    # Sort pools by their 'order' (assuming order can be converted to integer)
+    try:
+        pools_sorted = sorted(pools, key=lambda p: int(p.get("order", 0)))
+    except Exception:
+        pools_sorted = pools
+    
+    primary_pool = pools_sorted[0]
+    last_pool = pools_sorted[-1]
+    
+    # Check fallback modes:
+    for pool in pools_sorted[:-1]:
+        if pool.get("fallbackMode", "").lower() != "none":
+            return ("Critical", f"Pool '{pool.get('pool_name', '')}' should have fallbackMode 'none' when multiple pools are used")
+    
+    if last_pool.get("fallbackMode", "").lower() != "return-to-dns":
+        return ("Critical", f"Last pool '{last_pool.get('pool_name', '')}' must have fallbackMode 'return-to-dns'")
+    
+    # Check A‑Record based on the primary pool's load balancing method:
+    a_record_ips = set(wideip_entry.get("A-Record", []))
+    primary_lb = primary_pool.get("loadBalancingMode", "").lower()
+    members = primary_pool.get("members", [])
+    
+    if primary_lb == "round robin":
+        expected_ips = {extract_ip(m) for m in members}
+        if expected_ips != a_record_ips:
+            return ("Critical", "For multiple pools with primary pool using round robin, A‑Record must include all primary pool members")
+    elif primary_lb == "global availability":
+        if members:
+            primary_ip = extract_ip(members[0])
+            if a_record_ips != {primary_ip}:
+                return ("Critical", "For multiple pools with primary pool using global availability, A‑Record must include only the primary member")
+    
+    return None
+
+======
+
+
+
+
+
 FLAG_PRIORITY = {
     "Critical": 1,
     "Out of Standard": 2,
