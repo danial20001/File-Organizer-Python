@@ -1,3 +1,132 @@
+# SecureCRT Python script with password handling and prompt verification
+import csv
+import time
+
+def parse_ips(ip_cell):
+    """
+    Given a cell containing multiple IP addresses (one per line),
+    return a list of IP address strings.
+    """
+    lines = ip_cell.splitlines()
+    ips = []
+    for line in lines:
+        line = line.strip()
+        if line:
+            ips.append(line)
+    return ips
+
+def ssh_in_same_session(target, expected_hostname, ssh_username, ssh_password, timeout=20):
+    """
+    In the current SecureCRT session, sends:
+       ssh <target>
+    and then waits for one of these prompts:
+       - "yes/no"    -> send "yes"
+       - "assword:"  -> send the password (ssh_password)
+       - expected_hostname -> success!
+    
+    Returns True if expected_hostname appears (meaning you reached the device),
+    otherwise returns False.
+    
+    NOTE:
+      - If a password prompt appears, this function sends the password.
+      - Adjust 'timeout' if your network or device is slow.
+    """
+    crt.Screen.Clear()
+    crt.Screen.Send("ssh " + target + "\r")
+    
+    start_time = time.time()
+    # Loop until timeout expires
+    while (time.time() - start_time) < timeout:
+        # Wait for 1 second for one of these strings to appear
+        index = crt.Screen.WaitForStrings(["yes/no", "assword:", expected_hostname], 1)
+        if index == 1:
+            # Host key confirmation prompt detected
+            crt.Screen.Send("yes\r")
+            continue
+        elif index == 2:
+            # Password prompt detected; send password.
+            crt.Screen.Send(ssh_password + "\r")
+            # Now wait for the expected hostname prompt.
+            if crt.Screen.WaitForString(expected_hostname, timeout - (time.time() - start_time)):
+                return True
+            else:
+                return False
+        elif index == 3:
+            # Expected hostname prompt found. Success!
+            return True
+    return False
+
+def main():
+    # Ensure the screen is synchronous so we capture all output reliably.
+    crt.Screen.Synchronous = True
+
+    # Use the CSV file "Book1.csv" in the same folder as this script.
+    csv_path = "Book1.csv"
+    
+    # Update with your SSH login details
+    ssh_username = "your_username"     # <<-- Replace with your actual username
+    ssh_password = "your_password"     # <<-- Replace with your actual password
+
+    try:
+        csvfile = open(csv_path, "r", newline='')
+    except Exception as e:
+        crt.Dialog.MessageBox("Error opening CSV file: " + str(e))
+        return
+    
+    reader = csv.reader(csvfile)
+    
+    # Process each row: Column A is the hostname; Column B has one or more IP addresses (each on a new line)
+    for row in reader:
+        if len(row) < 2:
+            continue
+        
+        hostname = row[0].strip()
+        ip_cell = row[1]
+        ip_list = parse_ips(ip_cell)
+        
+        crt.Dialog.MessageBox("Testing Host: " + hostname)
+        
+        # 1) Test SSH using the hostname
+        if ssh_in_same_session(hostname, hostname, ssh_username, ssh_password, 20):
+            crt.Dialog.MessageBox("SUCCESS: Connected to " + hostname + " via hostname")
+            # Exit the remote session to return to your jumpbox shell.
+            crt.Screen.Send("exit\r")
+            time.sleep(1)
+        else:
+            crt.Dialog.MessageBox("FAILED: Unable to connect to " + hostname + " via hostname. Skipping IP tests.")
+            continue
+        
+        # 2) Test each IP address from the IP cell.
+        successful_ips = []
+        for ip in ip_list:
+            crt.Dialog.MessageBox("Testing IP: " + ip)
+            if ssh_in_same_session(ip, hostname, ssh_username, ssh_password, 20):
+                successful_ips.append(ip)
+                crt.Dialog.MessageBox("SUCCESS: " + hostname + " reachable at " + ip)
+                crt.Screen.Send("exit\r")
+                time.sleep(1)
+            else:
+                crt.Dialog.MessageBox("FAILED: " + hostname + " not confirmed at " + ip)
+        
+        # Display summary for this host.
+        if successful_ips:
+            summary = "Host " + hostname + " - Successful IPs: " + ", ".join(successful_ips)
+        else:
+            summary = "Host " + hostname + " - No IP addresses succeeded."
+        crt.Dialog.MessageBox(summary)
+    
+    csvfile.close()
+    crt.Dialog.MessageBox("Script finished processing all devices.")
+
+main()
+
+
+
+
+
+
+
+
 # SecureCRT Python script
 import csv
 import time
