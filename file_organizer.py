@@ -2,6 +2,43 @@ import pandas as pd
 import paramiko
 import socket
 
+# Load the CSV file and extract device names/IPs from Column A
+file_path = 'devices.csv'  # Make sure your CSV file is named correctly
+df = pd.read_csv(file_path, usecols=[0], header=None)  # Read only Column A
+
+# Convert Column A to a list of device IPs
+device_names = df[0].dropna().tolist()  # Drop empty rows and convert to list
+
+# SSH credentials
+username = 'your_username'
+password = 'your_password'
+
+# Function to check SSH connectivity
+def check_ssh(device_ip):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(
+            hostname=device_ip,
+            username=username,
+            password=password,
+            timeout=5  # Timeout in seconds
+        )
+        print(f"{device_ip}: GOOD (SSH connection successful)")
+    except (paramiko.ssh_exception.NoValidConnectionsError, socket.timeout, paramiko.AuthenticationException):
+        print(f"{device_ip}: BAD (SSH failed)")
+    finally:
+        client.close()
+
+# Iterate over device IPs and check SSH connectivity
+for device_ip in device_names:
+    check_ssh(device_ip)
+
+
+import pandas as pd
+import paramiko
+import socket
+
 # Load the Excel file and extract device names/IPs from Column A
 file_path = 'Book1.xlsx'
 df = pd.read_excel(file_path, usecols='A', header=None)
