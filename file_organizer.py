@@ -1,3 +1,43 @@
+import pandas as pd
+import paramiko
+import socket
+
+# Load the Excel file and extract device names/IPs from Column A
+file_path = 'Book1.xlsx'
+df = pd.read_excel(file_path, usecols='A', header=None)
+device_names = df[0].dropna().tolist()  # Drop any empty cells and convert to list
+
+# SSH credentials
+username = 'your_username'
+password = 'your_password'
+
+# Function to check SSH connectivity
+def check_ssh(device_ip):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(
+            hostname=device_ip,
+            username=username,
+            password=password,
+            timeout=5  # seconds
+        )
+        print(f"{device_ip}: GOOD")
+    except (paramiko.ssh_exception.NoValidConnectionsError, socket.timeout, paramiko.AuthenticationException):
+        print(f"{device_ip}: BAD")
+    finally:
+        client.close()
+
+# Iterate over device IPs and check SSH connectivity
+for device_ip in device_names:
+    check_ssh(device_ip)
+    
+    
+    
+    
+
+
+
 def apply_rules(wideip_entry: dict):
     """
     Apply all rules, then:
