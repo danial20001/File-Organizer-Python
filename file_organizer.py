@@ -1,3 +1,117 @@
+# SecureCRT Python script
+import csv
+import time
+
+def parse_ips(ip_cell):
+    """
+    Split the cell containing multiple IP addresses on separate lines,
+    returning a list of IP strings.
+    """
+    # Split on newline
+    ips = ip_cell.splitlines()
+    # Clean up whitespace
+    return [ip.strip() for ip in ips if ip.strip()]
+
+def test_connection(target, ssh_username, expected_hostname, timeout=10):
+    """
+    Attempts an SSH connection to 'target' (hostname or IP) using SecureCRT.
+    Checks if 'expected_hostname' appears in the prompt to confirm it's the same device.
+    Returns True if we see the hostname in the prompt, else False.
+    """
+    ssh_command = f"/SSH2 /L {ssh_username} {target}"
+    crt.Dialog.MessageBox(f"Attempting SSH to: {target}")
+    
+    # Initiate SSH connection via SecureCRT
+    crt.Session.Connect(ssh_command)
+    
+    # Small delay to allow session to establish
+    time.sleep(2)
+    
+    # We'll check if the screen eventually shows the expected hostname
+    try:
+        # Wait up to 'timeout' seconds for the hostname to appear in the prompt
+        if crt.Screen.WaitForString(expected_hostname, timeout):
+            return True
+        else:
+            return False
+    except Exception as e:
+        crt.Dialog.MessageBox(f"Error while checking prompt for {target}: {str(e)}")
+        return False
+
+def main():
+    # Path to your CSV file. Adjust as needed.
+    csv_path = r"C:\path\to\your\devices.csv"
+    
+    # Set your SSH username.
+    ssh_username = "your_username"
+    
+    # Open the CSV file
+    try:
+        csvfile = open(csv_path, "r", newline='')
+    except Exception as e:
+        crt.Dialog.MessageBox(f"Error opening CSV file: {str(e)}")
+        return
+    
+    reader = csv.reader(csvfile)
+    
+    for row in reader:
+        # Each row should have at least two columns: hostname and IP-cell
+        if len(row) < 2:
+            continue
+        
+        hostname = row[0].strip()
+        ip_cell = row[1]
+        
+        # Parse out all IP addresses from the second column
+        ip_list = parse_ips(ip_cell)
+        
+        crt.Dialog.MessageBox(f"--- Testing Host: {hostname} ---")
+        
+        # 1) Test the device by hostname
+        hostname_success = test_connection(hostname, ssh_username, hostname)
+        
+        # Disconnect after the attempt
+        crt.Session.Disconnect()
+        
+        if not hostname_success:
+            # If we can't connect by hostname, skip IP checks
+            crt.Dialog.MessageBox(f"FAILED: Unable to SSH to {hostname} by hostname. Skipping IP tests.")
+            continue
+        else:
+            crt.Dialog.MessageBox(f"SUCCESS: Able to SSH to {hostname} by hostname.")
+        
+        # 2) Now test each IP address
+        successful_ips = []
+        for ip in ip_list:
+            ip_success = test_connection(ip, ssh_username, hostname)
+            crt.Session.Disconnect()
+            
+            if ip_success:
+                successful_ips.append(ip)
+                crt.Dialog.MessageBox(f"SUCCESS: {hostname} reachable at IP {ip}")
+            else:
+                crt.Dialog.MessageBox(f"FAILED: {hostname} not confirmed at IP {ip}")
+        
+        # Summary for this row
+        if successful_ips:
+            summary = (f"Host {hostname} - IPs that worked: " +
+                       ", ".join(successful_ips))
+        else:
+            summary = f"Host {hostname} - No IPs succeeded."
+        
+        crt.Dialog.MessageBox(summary)
+    
+    csvfile.close()
+    crt.Dialog.MessageBox("Script finished processing all devices.")
+
+# Run main
+main()
+
+
+
+
+
+
 import pandas as pd
 import paramiko
 import socket
