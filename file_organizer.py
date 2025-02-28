@@ -1,3 +1,23 @@
+import subprocess
+
+def get_hostname(ip):
+    try:
+        result = subprocess.run(["nslookup", ip], capture_output=True, text=True)
+        for line in result.stdout.splitlines():
+            if "Name:" in line:
+                return line.split(":")[1].strip().split('.')[0]  # Get hostname before first dot
+        return "No PTR record found"
+    except Exception as e:
+        return f"Error: {e}"
+
+ip = "your-ip-here"
+print(get_hostname(ip))
+
+
+
+
+
+
 import socket
 
 with open("ips.txt") as file:
