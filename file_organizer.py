@@ -1,4 +1,70 @@
 import os
+import csv
+import time
+
+# Determine the script directory and build the CSV file path.
+script_dir = os.path.dirname(crt.ScriptFullName)
+csv_path = os.path.join(script_dir, "Book1.csv")
+
+def ssh_to_device(device, expected_prompt, timeout=20):
+    crt.Screen.Clear()
+    crt.Screen.Send("ssh " + device + "\r")
+    
+    start_time = time.time()
+    while (time.time() - start_time) < timeout:
+        index = crt.Screen.WaitForStrings(
+            ["yes/no", "assword:", expected_prompt, "Could not resolve hostname"],
+            1
+        )
+        if index == 1:
+            # Auto-accept the host key.
+            crt.Screen.Send("yes\r")
+            continue
+        elif index == 2:
+            # Password prompt: wait for you to type the password manually.
+            if crt.Screen.WaitForString(expected_prompt, timeout - (time.time() - start_time)):
+                return True
+            else:
+                return False
+        elif index == 3:
+            # Expected prompt found; login successful.
+            return True
+        elif index == 4:
+            # Hostname resolution failed.
+            return False
+    return False
+
+def main():
+    crt.Screen.Synchronous = True
+
+    try:
+        csvfile = open(csv_path, "rb")
+    except Exception:
+        return
+
+    reader = csv.reader(csvfile)
+    for row in reader:
+        if not row or row[0].strip() == "":
+            continue
+
+        device = row[0].strip()
+        if ssh_to_device(device, device, 20):
+            # Once logged in, send exit to close the session.
+            crt.Screen.Send("exit\r")
+            time.sleep(1)
+        # Proceed to next device regardless of success/failure.
+    csvfile.close()
+
+main()
+
+
+
+
+
+
+
+
+import os
 import csv  # Make sure you import the csv module
 import time
 
