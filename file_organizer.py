@@ -10,6 +10,36 @@ def get_hostname(ip):
     except Exception as e:
         return f"Error: {e}"
 
+# Read IPs from a text file
+input_file = "ips.txt"
+output_file = "results.txt"
+
+with open(input_file, "r") as file, open(output_file, "w") as output:
+    for ip in file:
+        ip = ip.strip()
+        if ip:  # Skip empty lines
+            hostname = get_hostname(ip)
+            output.write(f"{ip} -> {hostname}\n")
+            print(f"{ip} -> {hostname}")  # Print progress
+
+print("Done! Results saved in results.txt")
+
+
+
+
+
+import subprocess
+
+def get_hostname(ip):
+    try:
+        result = subprocess.run(["nslookup", ip], capture_output=True, text=True)
+        for line in result.stdout.splitlines():
+            if "Name:" in line:
+                return line.split(":")[1].strip().split('.')[0]  # Get hostname before first dot
+        return "No PTR record found"
+    except Exception as e:
+        return f"Error: {e}"
+
 ip = "your-ip-here"
 print(get_hostname(ip))
 
