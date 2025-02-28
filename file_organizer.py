@@ -1,5 +1,29 @@
 import subprocess
 
+# Read IPs from a text file
+input_file = "ips.txt"
+output_file = "results.txt"
+
+with open(input_file, "r") as file, open(output_file, "w") as output:
+    for ip in file:
+        ip = ip.strip()
+        if ip:
+            # Run nslookup using the native shell of your jump box
+            result = subprocess.run(f"nslookup {ip}", shell=True, capture_output=True, text=True, executable="/bin/bash")
+
+            # Write the raw output directly to file
+            output.write(f"NSLOOKUP for {ip}:\n{result.stdout}\n\n")
+
+            # Print to screen for live feedback
+            print(f"NSLOOKUP for {ip}:\n{result.stdout}\n")
+
+print("Done! Results saved in results.txt")
+
+
+
+
+import subprocess
+
 def get_hostname(ip):
     try:
         result = subprocess.run(["nslookup", ip], capture_output=True, text=True)
