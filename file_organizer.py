@@ -1,5 +1,29 @@
 #!/bin/bash
 
+input_file="ips.txt"
+output_file="ping_results.txt"
+
+> "$output_file"
+
+while IFS= read -r ip; do
+    if [[ -n "$ip" ]]; then
+        echo "Processing IP: '$ip'"
+        ping -c 4 "$ip" >> "$output_file" 2>&1
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to ping $ip" >> "$output_file"
+        fi
+        echo -e "\n-------------------------\n" >> "$output_file"
+    else
+        echo "Empty or invalid line detected."
+    fi
+done < "$input_file"
+
+echo "Done! Results saved in $output_file"
+
+
+
+#!/bin/bash
+
 # Input file containing IPs
 input_file="ips.txt"
 
