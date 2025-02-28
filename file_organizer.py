@@ -1,5 +1,43 @@
 #!/bin/bash
 
+# Input file containing IPs
+input_file="ips.txt"
+
+# Output file for storing results
+output_file="hostnames.csv"
+
+# Initialize the output CSV file with headers
+echo "Hostname,IP Address" > "$output_file"
+
+# Loop through each IP in the input file
+while IFS= read -r ip; do
+    # Trim whitespace from the IP address
+    clean_ip=$(echo "$ip" | xargs)
+
+    # Check if IP is not empty
+    if [[ -n "$clean_ip" ]]; then
+        echo "Connecting to $clean_ip..."
+
+        # SSH command to retrieve hostname (Safe key handling)
+        hostname=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "user@$clean_ip" 'hostname' 2>/dev/null)
+
+        # Check if SSH connection was successful
+        if [[ $? -eq 0 ]]; then
+            echo "Retrieved hostname: $hostname"
+            echo "$hostname,$clean_ip" >> "$output_file"
+        else
+            echo "Failed to connect to $clean_ip"
+            echo "Unknown,$clean_ip" >> "$output_file"
+        fi
+    fi
+done < "$input_file"
+
+echo "✅ Process completed. Results saved in $output_file."
+
+
+
+#!/bin/bash
+
 input_file="ips.txt"
 output_file="ping_results.txt"
 
