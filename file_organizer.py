@@ -1,3 +1,21 @@
+import socket
+
+with open("ips.txt") as file:
+    ips = file.read().splitlines()
+
+with open("results.txt", "w") as output:
+    for ip in ips:
+        try:
+            hostname = socket.gethostbyaddr(ip)[0].split('.')[0]
+            output.write(f"{ip} -> {hostname}\n")
+        except socket.herror:
+            output.write(f"{ip} -> No PTR Record Found\n")
+
+print("Done! Check results.txt")
+
+
+
+
 import os
 import csv
 import time
