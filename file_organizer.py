@@ -1,3 +1,33 @@
+#!/bin/bash
+
+# Input file containing IPs
+input_file="ips.txt"
+
+# Output file for results
+output_file="ping_results.txt"
+
+# Clear previous results file
+> "$output_file"
+
+# Loop through each IP in ips.txt
+while IFS= read -r ip; do
+    if [[ -n "$ip" ]]; then
+        echo "Pinging $ip..."
+        
+        # Run ping (adjust count based on your need)
+        ping -c 4 "$ip" >> "$output_file"
+        
+        # Separate results with a line
+        echo -e "\n-------------------------\n" >> "$output_file"
+    fi
+done < "$input_file"
+
+echo "Done! Results saved in ping_results.txt"
+
+
+
+
+
 import subprocess
 
 # Read IPs from a text file
