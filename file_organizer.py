@@ -1,3 +1,77 @@
+#!/usr/bin/expect -f
+
+# Enable internal debugging for detailed output (remove or comment out after debugging)
+exp_internal 1
+
+# Set a timeout (in seconds)
+set timeout 10
+
+# Set credentials and file names
+set user "yourusername"
+set password "YourPasswordHere"   ;# WARNING: Storing passwords in plain text is insecure.
+set input_file "ips.txt"
+set output_file "hostnames.csv"
+
+# Initialize the CSV file with headers
+set out [open $output_file "w"]
+puts $out "Hostname,IP Address"
+close $out
+
+# Open the input file for reading
+set in [open $input_file "r"]
+
+while {[gets $in ip] != -1} {
+    if {$ip ne ""} {
+        puts "Connecting to $ip..."
+
+        # Spawn the SSH process to run 'hostname' on the remote device
+        spawn ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "$user@$ip" hostname
+
+        expect {
+            -re "yes/no" {
+                send "yes\r"
+                exp_continue
+            }
+            -re "(?i)password:" {
+                send "$password\r"
+            }
+            timeout {
+                puts "Timeout connecting to $ip"
+                set hostname "Unknown"
+                # Append the result as unknown for this IP
+                set out [open $output_file "a"]
+                puts $out "$hostname,$ip"
+                close $out
+                continue
+            }
+        }
+
+        # Expect the hostname output
+        expect {
+            -re "(.*)\r\n" {
+                set hostname $expect_out(1,string)
+            }
+            timeout {
+                set hostname "Unknown"
+            }
+        }
+
+        # Append the result to the CSV file
+        set out [open $output_file "a"]
+        puts $out "$hostname,$ip"
+        close $out
+
+        puts "Retrieved hostname: $hostname"
+    }
+}
+
+close $in
+
+puts "Process completed. Results saved in $output_file."
+
+
+
+
 #!/bin/bash
 
 # Input and output files
