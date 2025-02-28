@@ -1,5 +1,38 @@
 #!/bin/bash
 
+# Input and output files
+input_file="ips.txt"
+output_file="hostnames.csv"
+password="YourPasswordHere"  # Replace with your actual password
+
+# Initialize the output CSV file with headers
+echo "Hostname,IP Address" > "$output_file"
+
+# Loop through each IP address in the input file
+while IFS= read -r ip; do
+    # Check if the IP address is not empty
+    if [[ -n "$ip" ]]; then
+        echo "Connecting to $ip..."
+
+        # SSH into the server, retrieve the hostname, and append to the output file
+        hostname=$(sshpass -p "$password" ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "user@$ip" 'hostname' 2>/dev/null)
+
+        # Check if SSH was successful
+        if [[ $? -eq 0 ]]; then
+            echo "Retrieved hostname: $hostname"
+            echo "$hostname,$ip" >> "$output_file"
+        else
+            echo "Failed to connect to $ip"
+            echo "Unknown,$ip" >> "$output_file"
+        fi
+    fi
+done < "$input_file"
+
+echo "Process completed. Results saved in $output_file."
+
+
+#!/bin/bash
+
 # Input file containing IPs
 input_file="ips.txt"
 
