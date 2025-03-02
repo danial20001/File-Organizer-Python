@@ -1,3 +1,34 @@
+ # ---------------------------------------------------------
+        # Build a map from wideipName --> (availability, enabled)
+        # ---------------------------------------------------------
+        health_map = {}
+        for full_url, val in health_entries.items():
+            # full_url looks like:
+            #   "https://localhost/mgmt/tm/gtm/wideip/a/~Common~mywideip.com/stats?ver=15.1.6.1"
+            #
+            # We'll extract "mywideip.com" from that.
+            match = re.search(r'/~Common~([^/]+)/stats', full_url)
+            if match:
+                found_name = match.group(1)  # e.g. "mywideip.com"
+                nested_stats = val.get('nestedStats', {}).get('entries', {})
+                availability = nested_stats.get('status.availabilityState', {}).get('description', 'Unknown')
+                enabled = nested_stats.get('status.enabledState', {}).get('description', 'Unknown')
+
+                health_map[found_name] = {
+                    'availabilityState': availability,
+                    'enabledState': enabled
+                }
+            # else: ignore keys that don't match the pattern
+
+
+
+
+
+
+
+
+
+
 wideip_key = f"Common~{wideip_name}"
                 if wideip_key in health_entries:
                     nested_stats = health_entries[wideip_key].get('nestedStats', {}).get('entries', {})
