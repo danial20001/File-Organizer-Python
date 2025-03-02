@@ -1,4 +1,14 @@
- # ---------------------------------------------------------
+                # 1) Retrieve availabilityState/enabledState from the map
+                if wideip_name in health_map:
+                    wideip_entry['availabilityState'] = health_map[wideip_name]['availabilityState']
+                    wideip_entry['enabledState'] = health_map[wideip_name]['enabledState']
+                else:
+                    wideip_entry['availabilityState'] = 'Unknown'
+                    wideip_entry['enabledState'] = 'Unknown'
+
+
+
+# ---------------------------------------------------------
         # Build a map from wideipName --> (availability, enabled)
         # ---------------------------------------------------------
         health_map = {}
