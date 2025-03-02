@@ -1,4 +1,16 @@
-                # 1) Retrieve availabilityState/enabledState from the map
+health_response = requests.get(
+                f"https://{device_ip}/mgmt/tm/gtm/wideip/a/stats",
+                verify=False,
+                headers={'Content-Type': 'application/json'},
+                auth=(credentials['username'], credentials['password'])
+            )
+            health_json = health_response.json() or {}
+            health_entries = health_json.get('entries', {})
+
+
+
+
+# 1) Retrieve availabilityState/enabledState from the map
                 if wideip_name in health_map:
                     wideip_entry['availabilityState'] = health_map[wideip_name]['availabilityState']
                     wideip_entry['enabledState'] = health_map[wideip_name]['enabledState']
