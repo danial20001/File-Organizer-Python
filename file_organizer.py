@@ -1,3 +1,18 @@
+wideip_key = f"Common~{wideip_name}"
+                if wideip_key in health_entries:
+                    nested_stats = health_entries[wideip_key].get('nestedStats', {}).get('entries', {})
+                    availability = nested_stats.get('status.availabilityState', {}).get('description', '')
+                    enabled = nested_stats.get('status.enabledState', {}).get('description', '')
+                    # Store in wideip_entry
+                    wideip_entry['availabilityState'] = availability
+                    wideip_entry['enabledState'] = enabled
+                else:
+                    # If not found, set some default or “Unknown”
+                    wideip_entry['availabilityState'] = 'Unknown'
+                    wideip_entry['enabledState'] = 'Unknown'
+
+
+
 #!/usr/bin/expect -f
 
 # Enable internal debugging for detailed output (remove or comment out after debugging)
