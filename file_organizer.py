@@ -1,3 +1,43 @@
+import ipaddress
+import socket
+import pandas as pd
+
+# Specify your CIDR subnet here (e.g., "10.161.200.0/22")
+subnet = ipaddress.ip_network("10.161.200.0/22")
+
+# List to hold tuples of (IP, DNS result)
+results = []
+
+# Iterate through all host addresses in the subnet.
+# This automatically skips the network and broadcast addresses.
+for ip in subnet.hosts():
+    ip_str = str(ip)
+    try:
+        # Perform a reverse DNS lookup for the current IP address.
+        dns_result = socket.gethostbyaddr(ip_str)[0]
+        # Optionally, you can check if the returned domain contains the expected string.
+        # For instance, to only capture entries that include "bankofamerica.com", you could:
+        # if "bankofamerica.com" in dns_result.lower():
+        results.append((ip_str, dns_result))
+    except socket.herror:
+        # No reverse DNS entry found for this IP.
+        # You can choose to ignore or log this case.
+        continue
+
+# Create a pandas DataFrame with the results.
+df = pd.DataFrame(results, columns=["IP Address", "DNS Name"])
+
+# Save the results to an Excel file.
+excel_file = "dns_lookup_results.xlsx"
+df.to_excel(excel_file, index=False)
+
+print(f"Excel file '{excel_file}' has been created with the DNS lookup results.")
+
+
+
+
+
+
 def calculate_expected_a_records(wideip_entry: dict) -> list:
     """
     Calculate expected A‑records for a WideIP entry following these revised rules:
