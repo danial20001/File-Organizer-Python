@@ -1,3 +1,19 @@
+# Extract Pool Members along with their memberOrder
+pool_members = []       # raw member names
+member_orders = []      # parallel list for memberOrder values
+members_ref = pool_obj.get('membersReference', {}).get('items', [])
+for member in members_ref:
+    member_name = member.get('name', '')
+    # Use the API-provided memberOrder, or '-' if it's missing
+    m_order = member.get('memberOrder', '-')
+    pool_members.append(member_name)
+    member_orders.append(m_order)
+
+
+
+
+
+
 health_response = requests.get(
                 f"https://{device_ip}/mgmt/tm/gtm/wideip/a/stats",
                 verify=False,
