@@ -1,3 +1,8 @@
+expected_a_records_str = "\r\n".join(wideip_entry.get("expectedARecords", []))
+
+
+
+
 def calculate_expected_a_records(wideip_entry: dict) -> list:
     """
     Calculate expected A‑records for a WideIP entry following these revised rules:
