@@ -1,3 +1,29 @@
+def build_pool_details(pools: list) -> str:
+    """
+    Build a multi-line string for Excel export for the given pools.
+    Each pool is formatted as:
+    
+      Pool Name: <pool_name>
+      Order: <order> | FallbackMode: <fallbackMode>
+      Members:
+        - <order>) <member>
+        - <order>) <member>
+    
+    Pools are separated by a blank line.
+    """
+    lines = []
+    for pool in pools:
+        lines.append(f"Pool Name: {pool.get('pool_name', '')}")
+        lines.append(f"Order: {pool.get('order', '')} | FallbackMode: {pool.get('fallbackMode', '')}")
+        lines.append("Members:")
+        for member in pool.get("members", []):
+            # Here member is a dict like {"member": "1.1.1.1", "order": 0}
+            lines.append(f"  - {member.get('order', '-')}) {member.get('member', '')}")
+        lines.append("")  # Blank line between pools
+    return "\n".join(lines)
+
+
+
 # Extract Pool Members as a list of dictionaries containing both member and memberOrder
 members_list = []
 members_ref = pool_obj.get('membersReference', {}).get('items', [])
