@@ -1,3 +1,73 @@
+def calculate_expected_a_records(wideip_entry: dict) -> list:
+    """
+    Calculate expected A‑records for a WideIP entry following these revised rules:
+    
+    - If at least one pool in the WideIP has fallbackMode "return-to-dns",
+      then consider ALL pools for calculating expected A‑records.
+    - Otherwise, return an empty list.
+    
+    For poolLbMode:
+      * If "global availability":
+          - Sort all pools by order and use the lowest pool.
+          - If its loadBalancingMode is "round robin":
+                expected A‑records = all members from that lowest pool.
+          - If its loadBalancingMode is "global availability":
+                expected A‑record = the member with the lowest memberOrder from that pool.
+      * If "round-robin":
+          - For each pool:
+                - If loadBalancingMode is "round robin": include all members.
+                - If loadBalancingMode is "global availability": include only the member with the lowest memberOrder.
+    """
+    all_pools = wideip_entry.get("pools", [])
+    
+    # If no pool in this WideIP has fallbackMode "return-to-dns", return empty list.
+    if not any(p.get("fallbackMode", "").lower() == "return-to-dns" for p in all_pools):
+         return []
+    
+    # Otherwise, consider ALL pools
+    valid_pools = all_pools
+    expected = set()
+    pool_lb_mode = wideip_entry.get("poollbMode", "").lower()
+
+    if pool_lb_mode == "global availability":
+        # Sort all pools by their order (assuming order is numeric)
+        valid_pools_sorted = sorted(valid_pools, key=lambda p: int(p.get("order", 0)))
+        lowest_pool = valid_pools_sorted[0]
+        lowest_pool_lb_mode = lowest_pool.get("loadBalancingMode", "").lower()
+        if lowest_pool_lb_mode == "round robin":
+            # All members from the lowest pool
+            for member in lowest_pool.get("members", []):
+                expected.add(member.get("member", ""))
+        elif lowest_pool_lb_mode == "global availability":
+            members = lowest_pool.get("members", [])
+            try:
+                sorted_members = sorted(members, key=lambda m: int(m.get("order", 9999)))
+                if sorted_members:
+                    expected.add(sorted_members[0].get("member", ""))
+            except Exception:
+                if members:
+                    expected.add(members[0].get("member", ""))
+    elif pool_lb_mode == "round-robin":
+        # For each pool, apply the rule based on its loadBalancingMode.
+        for pool in valid_pools:
+            lb_mode = pool.get("loadBalancingMode", "").lower()
+            if lb_mode == "round robin":
+                # Include all members
+                for member in pool.get("members", []):
+                    expected.add(member.get("member", ""))
+            elif lb_mode == "global availability":
+                members = pool.get("members", [])
+                try:
+                    sorted_members = sorted(members, key=lambda m: int(m.get("order", 9999)))
+                    if sorted_members:
+                        expected.add(sorted_members[0].get("member", ""))
+                except Exception:
+                    if members:
+                        expected.add(members[0].get("member", ""))
+    return list(expected)
+
+===============
+
 wideip_entry["expectedARecords"] = calculate_expected_a_records(wideip_entry)
 
 def calculate_expected_a_records(wideip_entry: dict) -> list:
