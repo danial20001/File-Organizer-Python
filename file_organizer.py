@@ -1,3 +1,22 @@
+# Extract Pool Members as a list of dictionaries containing both member and memberOrder
+members_list = []
+members_ref = pool_obj.get('membersReference', {}).get('items', [])
+for member in members_ref:
+    member_name = member.get('name', '')
+    # Extract IP from the member_name (if needed) using your extract_ip() function,
+    # or simply use the member name as is.
+    ip = extract_ip(member_name)
+    m_order = member.get('memberOrder', '-')  # Use '-' if memberOrder is missing
+    members_list.append({
+        "member": ip,
+        "order": m_order
+    })
+
+
+
+
+
+
 # Extract Pool Members along with their memberOrder
 pool_members = []       # raw member names
 member_orders = []      # parallel list for memberOrder values
