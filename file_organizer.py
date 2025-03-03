@@ -1,3 +1,77 @@
+wideip_entry["expectedARecords"] = calculate_expected_a_records(wideip_entry)
+
+def calculate_expected_a_records(wideip_entry: dict) -> list:
+    """
+    Calculate expected A-records for a WideIP entry, following these rules:
+    
+    1. Consider only pools with fallbackMode equal to "return-to-dns" (ignore others).
+    
+    2. If poolLbMode is "global availability":
+         - And if the lowest pool's loadBalancingMode is "round robin":
+              expected A-record = all pool members (their "member" value) from the lowest pool.
+         - And if the lowest pool's loadBalancingMode is "global availability":
+              expected A-record = the pool member with the lowest memberOrder from the lowest pool.
+              
+    3. If poolLbMode is "round-robin":
+         - And if a pool’s loadBalancingMode is "round robin":
+              expected A-record = include all pool members from that pool.
+         - And if a pool’s loadBalancingMode is "global availability":
+              expected A-record = the pool member with the lowest memberOrder from that pool.
+              
+    Returns a list of expected A-record IP addresses.
+    """
+    expected = set()
+    
+    # Filter pools: only consider those with fallbackMode "return-to-dns"
+    valid_pools = [p for p in wideip_entry.get("pools", []) if p.get("fallbackMode", "").lower() == "return-to-dns"]
+    if not valid_pools:
+        return []
+    
+    pool_lb_mode = wideip_entry.get("poollbMode", "").lower()
+    
+    if pool_lb_mode == "global availability":
+        # Sort valid pools by pool order (assumed numeric)
+        valid_pools_sorted = sorted(valid_pools, key=lambda p: int(p.get("order", 0)))
+        lowest_pool = valid_pools_sorted[0]
+        lowest_pool_lb_mode = lowest_pool.get("loadBalancingMode", "").lower()
+        if lowest_pool_lb_mode == "round robin":
+            # Expected A-record: all members from the lowest pool.
+            for member in lowest_pool.get("members", []):
+                expected.add(member.get("member", ""))
+        elif lowest_pool_lb_mode == "global availability":
+            # Expected A-record: the member with the lowest memberOrder in the lowest pool.
+            members = lowest_pool.get("members", [])
+            try:
+                sorted_members = sorted(members, key=lambda m: int(m.get("order", 9999)))
+                if sorted_members:
+                    expected.add(sorted_members[0].get("member", ""))
+            except Exception as e:
+                if members:
+                    expected.add(members[0].get("member", ""))
+    elif pool_lb_mode == "round-robin":
+        # For each valid pool, check its loadBalancingMode.
+        for pool in valid_pools:
+            lb_mode = pool.get("loadBalancingMode", "").lower()
+            if lb_mode == "round robin":
+                # Include all members from that pool.
+                for member in pool.get("members", []):
+                    expected.add(member.get("member", ""))
+            elif lb_mode == "global availability":
+                # Include the member with the lowest memberOrder from that pool.
+                members = pool.get("members", [])
+                try:
+                    sorted_members = sorted(members, key=lambda m: int(m.get("order", 9999)))
+                    if sorted_members:
+                        expected.add(sorted_members[0].get("member", ""))
+                except Exception as e:
+                    if members:
+                        expected.add(members[0].get("member", ""))
+    # Return as a list
+    return list(expected)
+
+
+
+========
 elif user_choice == "2":
     import xlsxwriter
 
