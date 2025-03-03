@@ -1,3 +1,84 @@
+elif user_choice == "2":
+    import xlsxwriter
+
+    print("Writing DB to Excel file...\n")
+    # Set file path for XLSX file
+    filename = f"/storage/PUT_STUFF_IN_HERE/{getpass.getuser()}/data_base.xlsx"
+    workbook = xlsxwriter.Workbook(filename)
+    worksheet = workbook.add_worksheet()
+
+    # Define header format (dark navy background, white bold text, centered)
+    header_format = workbook.add_format({
+        'bold': True,
+        'font_color': 'white',
+        'bg_color': '#000080',  # dark navy
+        'align': 'center',
+        'valign': 'vcenter'
+    })
+
+    # Define cell format (wrap text and top align)
+    cell_format = workbook.add_format({
+        'text_wrap': True,
+        'valign': 'top'
+    })
+
+    # Define headers
+    headers = ['Vendor', 'VIP Name', 'Environment', 'Description', 'PoolLbMode', 'Pool Details']
+
+    # Write header row manually (row 0)
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header, header_format)
+
+    # Collect and write data rows from DB
+    data = []
+    for entry in db.all():
+        pool_details = build_pool_details(entry.get("pools", []))
+        row_data = [
+            entry.get('device', ''),
+            entry.get('wideip_name', ''),
+            entry.get('environment', 'Missing'),
+            entry.get('description', ''),
+            entry.get('poollbMode', ''),
+            pool_details
+        ]
+        data.append(row_data)
+
+    row_index = 1  # Data rows start at row 1
+    for row in data:
+        for col, value in enumerate(row):
+            worksheet.write(row_index, col, value, cell_format)
+        # Dynamically set row height based on the number of lines in Pool Details
+        num_lines = row[5].count('\r\n') + 1  # using Windows line breaks
+        worksheet.set_row(row_index, num_lines * 15)  # Adjust multiplier as needed
+        row_index += 1
+
+    # Optionally, set column widths (adjust values as needed)
+    worksheet.set_column(0, 0, 15)  # Vendor
+    worksheet.set_column(1, 1, 25)  # VIP Name
+    worksheet.set_column(2, 2, 15)  # Environment
+    worksheet.set_column(3, 3, 40)  # Description
+    worksheet.set_column(4, 4, 20)  # PoolLbMode
+    worksheet.set_column(5, 5, 50)  # Pool Details
+
+    # Add a table effect to the entire range to get alternating row colors, etc.
+    num_rows = row_index  # total rows (including header)
+    num_cols = len(headers)
+    worksheet.add_table(0, 0, num_rows - 1, num_cols - 1, {
+        'columns': [{'header': h} for h in headers],
+        'style': 'Table Style Medium 2'  # Choose a table style that gives you a blue-light/white alternating effect
+    })
+
+    workbook.close()
+
+    print(f"Data base written to {filename}\n"
+          "Please either use WinSCP or run the following scp command from a Windows command prompt: ")
+    print(f"scp {getpass.getuser()}@171.206.203.213:{filename} C:\\Users\\{getpass.getuser().upper()}\\Desktop")
+
+
+
+
+
+
 def build_pool_details(pools: list) -> str:
     lines = []
     for pool in pools:
