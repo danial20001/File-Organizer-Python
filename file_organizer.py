@@ -1,3 +1,22 @@
+# Calculate and attach expected A‑records.
+wideip_entry["expectedARecords"] = calculate_expected_a_records(wideip_entry)
+
+# Perform A-record check
+expected_set = set(wideip_entry.get("expectedARecords", []))
+actual_set = set(wideip_entry.get("A-Record", []))
+
+if not expected_set.intersection(actual_set):
+    # No expected A-record is found in the actual list.
+    wideip_entry["aRecordCheck"] = "Critical"
+elif expected_set != actual_set:
+    # Some (but not all) expected A-records are missing.
+    wideip_entry["aRecordCheck"] = "Medium-Impact"
+else:
+    # All expected A-records are present.
+    wideip_entry["aRecordCheck"] = "OK"
+
+
+
 expected_a_records_str = "\r\n".join(wideip_entry.get("expectedARecords", []))
 
 
