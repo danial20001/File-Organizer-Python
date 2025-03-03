@@ -1,4 +1,16 @@
 def build_pool_details(pools: list) -> str:
+    lines = []
+    for pool in pools:
+        lines.append(f"Pool Name: {pool.get('pool_name', '')}")
+        lines.append(f"Order: {pool.get('order', '')} | FallbackMode: {pool.get('fallbackMode', '')}")
+        lines.append("Members:")
+        for member in pool.get("members", []):
+            lines.append(f"  - {member.get('order', '-')}) {member.get('member', '')}")
+        lines.append("")  # Blank line between pools
+    return "\r\n".join(lines)
+
+
+def build_pool_details(pools: list) -> str:
     """
     Build a multi-line string for Excel export for the given pools.
     Each pool is formatted as:
