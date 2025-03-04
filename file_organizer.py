@@ -1,3 +1,26 @@
+env = wideip_entry.get("environment", "Missing")
+# If no expected A-records are defined, consider it OK.
+if not expected_set:
+    wideip_entry["aRecordCheck"] = "OK"
+else:
+    # Check for missing actual A-records or no intersection
+    if not actual_set or not expected_set.intersection(actual_set):
+        if env in ["Production", "Missing"]:
+            wideip_entry["aRecordCheck"] = "Critical"
+        else:
+            wideip_entry["aRecordCheck"] = "Non-Prod Critical"
+    # If all expected records match exactly
+    elif expected_set == actual_set:
+        wideip_entry["aRecordCheck"] = "OK"
+    # Partial match: some but not all expected records are found
+    else:
+        if env in ["Production", "Missing"]:
+            wideip_entry["aRecordCheck"] = "Medium-Impact"
+        else:
+            wideip_entry["aRecordCheck"] = "Non-Prod Medium"
+
+
+========
 import ipaddress
 import socket
 import pandas as pd
