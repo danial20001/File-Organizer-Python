@@ -1,3 +1,32 @@
+def format_a_record_comments(wideip_entry: dict) -> str:
+    """
+    Formats the comment field of a wideip_entry into a neat, multi-line, numbered string.
+    
+    Assumes that wideip_entry["comment"] is a string where individual comments are
+    separated by " | ". If the comment field is empty or missing, returns an empty string.
+    """
+    comment_text = wideip_entry.get("comment", "")
+    if not comment_text:
+        return ""
+    # Split the comment string into individual lines using " | " as the delimiter.
+    comment_list = [c.strip() for c in comment_text.split("|") if c.strip()]
+    # Create a numbered list of comments.
+    formatted_comments = "\n".join([f"{i+1}) {comment}" for i, comment in enumerate(comment_list)])
+    return formatted_comments
+
+# Example usage:
+# Assume wideip_entry["comment"] is "Please add the following IPs in a record: 10.0.0.1,10.0.0.2 | Please delete the following from a record list: 192.168.1.5 | Please set fallback method"
+# Calling the function would yield:
+# 1) Please add the following IPs in a record: 10.0.0.1,10.0.0.2
+# 2) Please delete the following from a record list: 192.168.1.5
+# 3) Please set fallback method
+
+
+
+
+
+======
+
 # Now, build the comment string based on missing and extra IPs.
 missing_ips = expected_set - actual_set
 extra_ips = actual_set - expected_set
