@@ -1,3 +1,107 @@
+import ipaddress
+import socket
+import pandas as pd
+import concurrent.futures
+
+def lookup_ip(ip_str, skipped_ips):
+    """
+    Performs a reverse DNS lookup for the given IP address.
+    Returns a tuple (ip_str, dns_result, domain_extracted) if successful,
+    or None if no DNS record is found.
+    """
+    try:
+        dns_result = socket.gethostbyaddr(ip_str)[0]
+    except socket.herror as e:
+        error_msg = f"DNS lookup failed for IP {ip_str}: {e}"
+        print(error_msg)
+        skipped_ips.append(error_msg)
+        return None  # Skip IPs with no DNS entry
+
+    # Check if the DNS name contains "bankofamerica.com"
+    if "bankofamerica.com" in dns_result.lower():
+        domain_extracted = "bankofamerica.com"
+    else:
+        domain_extracted = "old domain detected"
+
+    return (ip_str, dns_result, domain_extracted)
+
+def process_subnet(subnet_str, invalid_subnets):
+    """
+    Given a subnet string (CIDR), returns a list of host IP addresses as strings.
+    If the subnet is invalid, records the error message.
+    """
+    results = []
+    try:
+        # Using strict=True to enforce valid CIDR format
+        network = ipaddress.ip_network(subnet_str.strip(), strict=True)
+    except ValueError as e:
+        error_msg = f"Invalid subnet: {subnet_str.strip()} - Error: {e}"
+        print(error_msg)
+        invalid_subnets.append(error_msg)
+        return results
+    # Enumerate all usable host addresses
+    for ip in network.hosts():
+        results.append(str(ip))
+    print(f"Processed subnet: {subnet_str.strip()} -> {len(results)} IPs")
+    return results
+
+def main():
+    all_ips = []
+    invalid_subnets = []  # To record any invalid subnets
+    skipped_ips = []      # To record IPs that fail DNS lookup
+    
+    # Read subnets from subnet.txt (one per line)
+    with open("subnet.txt", "r") as f:
+        subnets = f.readlines()
+    
+    # Process each subnet to get all IP addresses
+    for subnet in subnets:
+        ips = process_subnet(subnet, invalid_subnets)
+        all_ips.extend(ips)
+    
+    total_ips = len(all_ips)
+    print(f"Total IP addresses to process: {total_ips}")
+    
+    results = []
+    processed_count = 0
+    
+    # Use a thread pool to perform DNS lookups concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        future_to_ip = {executor.submit(lookup_ip, ip, skipped_ips): ip for ip in all_ips}
+        for future in concurrent.futures.as_completed(future_to_ip):
+            processed_count += 1
+            result = future.result()
+            if result is not None:
+                results.append(result)
+            # Print progress every 100 processed IPs (adjust as needed)
+            if processed_count % 100 == 0 or processed_count == total_ips:
+                print(f"Processed {processed_count} / {total_ips} IPs")
+    
+    # Create a pandas DataFrame with the results
+    df = pd.DataFrame(results, columns=["IP Address", "DNS Name", "Domain Extracted"])
+    
+    # Save the DataFrame to an Excel file
+    excel_file = "dns_lookup_results.xlsx"
+    df.to_excel(excel_file, index=False)
+    
+    print(f"Excel file '{excel_file}' has been created with the DNS lookup results.")
+    
+    # After all processing, print out the skipped subnets and DNS lookup failures
+    if invalid_subnets:
+        print("\nThe following subnets were skipped due to errors:")
+        for error in invalid_subnets:
+            print(error)
+    if skipped_ips:
+        print("\nThe following IP addresses failed DNS lookup:")
+        for error in skipped_ips:
+            print(error)
+
+if __name__ == "__main__":
+    main()
+
+
+
+
 def format_a_record_comments(wideip_entry: dict) -> str:
     """
     Formats the comment field of a wideip_entry into a neat, multi-line, numbered string.
