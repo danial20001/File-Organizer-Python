@@ -1,3 +1,31 @@
+# Now, build the comment string based on missing and extra IPs.
+missing_ips = expected_set - actual_set
+extra_ips = actual_set - expected_set
+comments = []
+
+if missing_ips:
+    comments.append("Please add the following IPs in a record: " + ", ".join(sorted(missing_ips)))
+if extra_ips:
+    comments.append("Please delete the following from a record list: " + ", ".join(sorted(extra_ips)))
+
+# Check if all pools have fallbackMode set as "none".
+if wideip_entry['pools']:
+    all_fallback_none = all(pool.get("fallbackMode", "").lower() == "none" for pool in wideip_entry['pools'])
+    if all_fallback_none:
+        comments.append("Please set fallback method")
+        # Force the severity to critical if not already critical.
+        if wideip_entry.get("aRecordCheck") not in ["Critical", "Non-Prod Critical"]:
+            if env in ["Production", "Missing"]:
+                wideip_entry["aRecordCheck"] = "Critical"
+            else:
+                wideip_entry["aRecordCheck"] = "Non-Prod Critical"
+
+# Save the concatenated comment in the entry.
+wideip_entry["comment"] = " | ".join(comments)
+
+
+
+
 env = wideip_entry.get("environment", "Missing")
 # If no expected A-records are defined, consider it OK.
 if not expected_set:
