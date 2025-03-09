@@ -1,3 +1,65 @@
+// 1) Extract client-ssl profiles from the "configuration" file.
+//    Looks for lines like: "ltm profile client-ssl <profileName>"
+let client_ssl_profiles =
+    network.devices
+    | where platform.vendor == "Vendor F5"
+    | where matches(toupper(name), "^P2") or matches(toupper(name), "^S2")
+    // Regex: capture the text after "ltm profile client-ssl"
+    | extend client_ssl_profile_name = extract(@"ltm profile client-ssl\s+(\S+)", 1, configuration)
+    // Only keep rows where we found a profile name
+    | where isnotempty(client_ssl_profile_name)
+    | project 
+        device_name = name,
+        client_ssl_profile_name;
+
+
+// 2) Extract VIP info (and the client-ssl profile references) from the "ltm_config" file.
+//    Assumes something like:
+//       ltm virtual myVIP {
+//         ...
+//         profiles {
+//           mySSLprofile {
+//             ...
+//           }
+//         }
+//       }
+let vip_data =
+    network.devices
+    | where platform.vendor == "Vendor F5"
+    | where matches(toupper(name), "^P2") or matches(toupper(name), "^S2")
+    // Extract the VIP name from a line like "ltm virtual <vipName>"
+    | extend vip_name = extract(@"ltm virtual\s+(\S+)", 1, ltm_config)
+
+    // Next, capture the entire 'profiles { ... }' block if it's multiline
+    | extend raw_profiles_block = extract(@"profiles\s*\{(.*?)\}", 1, ltm_config)
+
+    // Flatten newlines so it's easier to parse
+    | extend raw_profiles_block = replace(@"\r?\n", " ", raw_profiles_block)
+
+    // Split on '}' so each profile definition becomes a separate string
+    | mv-expand raw_profile_line = split(raw_profiles_block, "}")
+
+    // Inside each chunk, look for "client-ssl <profileName>"
+    | extend client_ssl_profile = extract(@"client-ssl\s+(\S+)", 1, raw_profile_line)
+
+    // Only keep rows where we actually found a client-ssl profile reference
+    | where isnotempty(client_ssl_profile)
+    | project 
+        device_name = name,
+        vip_name,
+        client_ssl_profile;
+
+
+// 3) Join the two sets to show only VIPs that reference a client-ssl profile
+//    which is actually defined in the configuration.
+client_ssl_profiles
+| join kind=inner vip_data on device_name, $left.client_ssl_profile_name == $right.client_ssl_profile
+| project 
+    device_name,
+    vip_name,
+    client_ssl_profile
+
+==============
 // First, extract the VIP information from the ltm config
 let vip_info = 
     network.devices
