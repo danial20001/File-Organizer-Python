@@ -1,3 +1,86 @@
+//----------------------------------------------------------------
+// 1) For each F5 device matching name ^P2 or ^S2, grab the config
+//----------------------------------------------------------------
+foreach device in network.devices
+where device.platform.vendor == "Vendor.F5"
+where matches(toupperCase(device.name), "^P2") 
+   or matches(toupperCase(device.name), "^S2")
+
+//----------------------------------------------------------------
+// 2) Extract the "configuration" text (where we define client-ssl profiles)
+//----------------------------------------------------------------
+let config_text = max(
+    foreach cmd in device.outputs.commands
+    where cmd.commandType == CommandType.F5_CONFIGURATION
+    // You can do any cleanup (e.g. remove brackets) here
+    let cleaned_config = replace(cmd.response, "[", "")
+    select cleaned_config
+);
+
+//----------------------------------------------------------------
+// 3) Extract the "ltm_config" text (where we define VIPs + attached profiles)
+//----------------------------------------------------------------
+let ltm_text = max(
+    foreach cmd in device.outputs.commands
+    where cmd.commandType == CommandType.F5_LTM_CONFIG
+    let cleaned_ltm = replace(cmd.response, "[", "")
+    select cleaned_ltm
+);
+
+//----------------------------------------------------------------
+// 4) Parse out client-ssl profiles from config_text
+//    Looking for lines like:
+//      ltm profile client-ssl <profileName>
+//----------------------------------------------------------------
+let ssl_profiles = foreach match in blockMatches(config_text, @"ltm profile client-ssl\s+(\S+)")
+select {
+    // Usually captures[0] is the entire match, captures[1] is the group
+    profileName: match.captures[0]
+};
+
+//----------------------------------------------------------------
+// 5) Parse out VIP definitions from ltm_text
+//    For lines like:
+//       ltm virtual <vipName> {
+//         ...
+//         profiles {
+//           myClientSSLProfile { ... }
+//         }
+//       }
+//    We'll do it in two steps:
+//    (A) Extract each VIP block (VIP name + entire curly block).
+//    (B) From that block, extract all client-ssl references.
+//----------------------------------------------------------------
+
+// (A) Extract each VIP block, capturing the VIP name and the block contents
+let vipBlocks = foreach vipBlock in blockMatches(ltm_text, @"ltm virtual\s+(\S+)\s*\{(.*?)\}")
+select {
+    vipName: vipBlock.captures[0],    // The 1st capture group is the name
+    vipBody: vipBlock.captures[1]     // The 2nd capture group is everything inside {...}
+};
+
+// (B) For each VIP block, extract any client-ssl lines inside
+let vipSslProfiles =
+    foreach vb in vipBlocks
+    foreach ssl in blockMatches(vb.vipBody, @"client-ssl\s+(\S+)")
+    select {
+        vipName: vb.vipName,
+        sslProfile: ssl.captures[0]
+    };
+
+//----------------------------------------------------------------
+// 6) Final "select": Show the device name plus the arrays we found.
+//    This will produce one row per device, with arrays for ssl_profiles
+//    and vipSslProfiles. You can export or expand them further if needed.
+//----------------------------------------------------------------
+select {
+    deviceName: device.name,
+    ssl_profiles: ssl_profiles,        // All client-ssl profiles found in config
+    vipSslProfiles: vipSslProfiles     // VIP name + each client-ssl reference
+}
+
+
+=======
 // 1) Extract client-ssl profiles from the "configuration" file.
 //    Looks for lines like: "ltm profile client-ssl <profileName>"
 let client_ssl_profiles =
