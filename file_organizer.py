@@ -1,4 +1,36 @@
 //----------------------------------------------------------------
+// 1) For each device, filter to F5 + name ^P2 or ^S2
+//----------------------------------------------------------------
+foreach device in network.devices
+where device.platform.vendor == "Vendor.F5"
+where matches(toupperCase(device.name), "^P2")
+   or matches(toupperCase(device.name), "^S2")
+
+//----------------------------------------------------------------
+// 2) Get the 'configuration' text
+//----------------------------------------------------------------
+let config_text = max(
+    foreach p in device.outputs.commands
+    where p.commandType == CommandType.F5_CONFIGURATION
+    select p.response
+)
+
+//----------------------------------------------------------------
+// 3) Parse out client-ssl profiles
+//    Regex: ltm profile client-ssl <profileName>
+//----------------------------------------------------------------
+let ssl_profiles =
+    foreach match in blockMatches(config_text, "ltm profile client-ssl\\s+(\\S+)")
+    select match.captures[0]
+
+//----------------------------------------------------------------
+// 4) Return final row with device name & the array of ssl_profiles
+//----------------------------------------------------------------
+select device.name, ssl_profiles
+
+
+
+//----------------------------------------------------------------
 // 1) For each F5 device matching name ^P2 or ^S2, grab the config
 //----------------------------------------------------------------
 foreach device in network.devices
