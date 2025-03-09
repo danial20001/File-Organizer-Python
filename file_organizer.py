@@ -1,3 +1,29 @@
+// First, extract the VIP information from the ltm config
+let vip_info = 
+    network.devices
+    | where platform.vendor == "Vendor F5"
+    | where matches(toupper(name), "^P2") or matches(toupper(name), "^S2")
+    // Extract the client-ssl certificate from the VIP (ltm config)
+    | extend vip_cert = extract(@"client-ssl\s+(\S+)", 1, ltm_config)
+    // And extract the VIP name (assumes a line like "ltm virtual <vip_name>")
+    | extend vip_name = extract(@"ltm virtual\s+(\S+)", 1, ltm_config)
+    | project device_name = name, vip_name, vip_cert;
+    
+// Next, extract the certificate info from the configuration file
+let cert_info =
+    network.devices
+    | where platform.vendor == "Vendor F5"
+    | where matches(toupper(name), "^P2") or matches(toupper(name), "^S2")
+    // Extract the certificate name from a line like "ltm profile client-ssl <cert_name>"
+    | extend config_cert = extract(@"ltm profile client-ssl\s+(\S+)", 1, configuration)
+    | project device_name = name, config_cert;
+    
+// Now, join the two so that we only display VIPs where the client-ssl profile (cert) is defined in configuration.
+vip_info
+| join kind=inner cert_info on device_name, $left.vip_cert == $right.config_cert
+| project device_name, vip_name, client_ssl_cert = config_cert
+
+=========
 import ipaddress
 import socket
 import pandas as pd
