@@ -1,3 +1,104 @@
+from datetime import datetime
+import requests
+
+def convert_epoch_to_date(epoch_time):
+    """Convert Unix timestamp to a human-readable date format"""
+    try:
+        return datetime.utcfromtimestamp(int(epoch_time)).strftime('%Y-%m-%d %H:%M:%S UTC')
+    except (ValueError, TypeError):
+        return "Unknown"
+
+def get_f5_certificates(credentials: dict, device_list: list) -> None:
+    for f5_device in device_list:
+        device = f5_device['device']
+        device_ip = f5_device['ip']
+
+        # Fetch all SSL certificates
+        cert_response = requests.get(
+            f"https://{device_ip}/mgmt/tm/sys/file/ssl-cert",
+            verify=False,
+            headers={"Content-Type": "application/json"},
+            auth=(credentials['username'], credentials['password'])
+        )
+        cert_json_response = cert_response.json().get('items', [])
+
+        # Fetch all SSL profiles
+        ssl_response = requests.get(
+            f"https://{device_ip}/mgmt/tm/ltm/profile/client-ssl",
+            verify=False,
+            headers={"Content-Type": "application/json"},
+            auth=(credentials['username'], credentials['password'])
+        )
+        ssl_json_response = ssl_response.json().get('items', [])
+
+        # Fetch all Virtual Servers (VIPs)
+        vip_response = requests.get(
+            f"https://{device_ip}/mgmt/tm/ltm/virtual?expandSubcollections=true",
+            verify=False,
+            headers={"Content-Type": "application/json"},
+            auth=(credentials['username'], credentials['password'])
+        )
+        vip_json_response = vip_response.json().get('items', [])
+
+        # Map SSL Profiles to the VIPs using them
+        ssl_profile_to_vip_map = {}
+        for vip in vip_json_response:
+            try:
+                vip_name = vip['name']
+                vs_profiles = vip['profilesReference']['items']
+                for profile in vs_profiles:
+                    ssl_profile_name = profile['name']
+                    if ssl_profile_name not in ssl_profile_to_vip_map:
+                        ssl_profile_to_vip_map[ssl_profile_name] = []
+                    ssl_profile_to_vip_map[ssl_profile_name].append(vip_name)
+            except KeyError:
+                continue  # Skip if no profiles are found
+
+        # Extract all certificate names used in SSL profiles
+        ssl_profile_certs = {}
+        for ssl_profile in ssl_json_response:
+            cert_name = ssl_profile.get('cert', '').split("/")[-1]  # Extract clean cert name
+            ssl_profile_name = ssl_profile['name']
+            if cert_name:
+                ssl_profile_certs[cert_name] = ssl_profile_name  # Map Cert → SSL Profile
+
+        # Insert certificate details into the database
+        for cert in cert_json_response:
+            cert_name = cert['name']
+            cert_expiry_epoch = cert.get('expirationDate', None)
+            cert_expiry_human = convert_epoch_to_date(cert_expiry_epoch)
+
+            # Check if this cert is used in any SSL profile
+            ssl_profile_name = ssl_profile_certs.get(cert_name, None)
+            in_ssl_profile = "Yes" if ssl_profile_name else "No"
+
+            # Find which VIPs are using this SSL profile
+            associated_vips = ssl_profile_to_vip_map.get(ssl_profile_name, [])
+
+            # Print the VIPs using this SSL profile
+            if in_ssl_profile == "Yes":
+                print(f"Certificate {cert_name} (Exp: {cert_expiry_human}) is used in SSL Profile '{ssl_profile_name}' and is associated with VIP(s): {', '.join(associated_vips)}")
+            else:
+                print(f"Certificate {cert_name} (Exp: {cert_expiry_human}) is NOT used in any SSL profile.")
+
+            lock.acquire()
+            db.insert({
+                "Device Type": "F5",
+                "Device": device.upper(),
+                "Cert": cert_name,
+                "Expiry_Date": cert_expiry_human,
+                "In_SSL_Profile": in_ssl_profile,  # Yes or No
+                "Associated_VIPs": associated_vips  # List of VIPs
+            })
+            lock.release()
+
+        lock.acquire()
+        print(f"{device.upper()} - Certificate Scanning Completed!")
+        lock.release()
+
+
+
+
 def convert_epoch_to_date(epoch_time):
     """Convert Unix timestamp to a human-readable date format"""
     try:
