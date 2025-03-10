@@ -1,3 +1,36 @@
+from datetime import datetime
+
+def convert_epoch_to_date(epoch_time):
+    """Convert Unix timestamp to a human-readable date format"""
+    try:
+        return datetime.utcfromtimestamp(int(epoch_time)).strftime('%Y-%m-%d %H:%M:%S UTC')
+    except (ValueError, TypeError):
+        return "Unknown"
+
+# Fetch all SSL certificate files (same API request)
+cert_response = requests.get(
+    f"https://{device_ip}/mgmt/tm/sys/file/ssl-cert",
+    verify=False,
+    headers={"Content-Type": "application/json"},
+    auth=(credentials['username'], credentials['password'])
+)
+cert_json_response = cert_response.json()
+cert_json_response = cert_json_response.get('items', [])
+
+# Store certificate details in a dictionary for easy lookup
+cert_dict = {}
+for cert in cert_json_response:
+    cert_name = cert['name']
+    cert_expiry_epoch = cert.get('expirationDate', None)  # Extract expiration date as epoch
+    cert_expiry_human = convert_epoch_to_date(cert_expiry_epoch)  # Convert to readable format
+    cert_dict[cert_name] = cert_expiry_human  # Store converted date
+
+
+
+
+
+
+
 //----------------------------------------------------------------
 // 1) For each device, filter to F5 + name ^P2 or ^S2
 //----------------------------------------------------------------
