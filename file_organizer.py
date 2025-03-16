@@ -1,3 +1,8 @@
+    let vip_ssl_profiles = (foreach prof in match.data.profiles
+        where any(ssl in all_client_ssl, matches(ssl.data.sslProfileName, prof))
+        select prof)
+
+
 foreach device in network.devices
 where device.platform.vendor == "Vendor F5"
 where matches(toUpperCase(device.name), "^P2") || matches(toUpperCase(device.name), "^S2")
