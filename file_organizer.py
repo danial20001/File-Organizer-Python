@@ -1,3 +1,54 @@
+foreach device in network.devices
+where device.platform.vendor == "Vendor F5"
+where matches(toUpperCase(device.name), "^P2") || matches(toUpperCase(device.name), "^S2")
+
+// Extract the LTM config from the device
+let ltm_config = max(foreach p in device.outputs.commands
+    where p.commandType == CommandType.F5_LTM_CONFIG
+    let filtered_config = replace(p.response, "{", "")
+    let filtered_config = replace(filtered_config, "}", "")
+    let filtered_config = replace(filtered_config, "\n\n", "\n")
+    let ltm_config = parseConfigBlocks(OS.F5, filtered_config) select ltm_config)
+where isPresent(ltm_config)
+
+// Define a pattern for VIP blocks that now includes a profiles section.
+// We use "string*" to capture multiple lines (or profiles) if needed.
+let vip_pattern =
+'''
+ltm virtual {vipname:string}
+  description {vipdescription:string}
+  destination {vipdestination:string}
+  pool {vippool:string}
+  profiles {profiles:string*}
+''';
+
+// Define a pattern to capture client-ssl profile details from the configuration.
+// This might come from the configuration file that holds certificate info.
+let client_ssl_pattern =
+'''
+ltm profile client-ssl {certname:string}
+''';
+
+// Extract all client-ssl profiles (the certificate names)
+let all_client_ssl_profiles = (foreach r in blockMatches(ltm_config, client_ssl_pattern) select r.data.certname);
+
+// Now, iterate over each VIP block from the LTM config.
+foreach vip in blockMatches(ltm_config, vip_pattern)
+    // Filter VIPs that have at least one profile line containing 'client-ssl'
+    where any(profile in vip.data.profiles, matches(toLowerCase(profile), "client-ssl"))
+    select {
+        device: device.name,
+        vipname: vip.data.vipname,
+        vipdesc: vip.data.vipdescription,
+        vipdestination: vip.data.vipdestination,
+        vippool: vip.data.vippool,
+        profiles: vip.data.profiles,
+        // Optionally, list which client-ssl certificates are known from the config
+        client_ssl_certificates: all_client_ssl_profiles
+    }
+
+
+
 from datetime import datetime
 import requests
 
