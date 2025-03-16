@@ -1,4 +1,10 @@
-    let vip_ssl_profiles = (foreach prof in match.data.profiles
+let matchingSSL = (foreach ssl in all_client_ssl
+    where matches(match.data.profile, ssl.data.sslProfileName)
+    select ssl
+)
+
+
+let vip_ssl_profiles = (foreach prof in match.data.profiles
         where any(ssl in all_client_ssl, matches(ssl.data.sslProfileName, prof))
         select prof)
 
