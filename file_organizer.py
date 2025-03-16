@@ -1,3 +1,30 @@
+foreach match in blockMatches(ltm_config, pattern)
+    // Split the multi-line profiles block into a list of profile names.
+    // (Assuming 'split' is supported; if not, you might need to adjust your pattern)
+    let vip_profiles_list = split(match.data.profile, "\n")
+    
+    // Now, for each VIP, check each profile against all_client_ssl.
+    let matchingSSL = (foreach prof in vip_profiles_list
+        foreach ssl in all_client_ssl
+            where matches(prof, ssl.data.sslProfileName)
+            select ssl
+    )
+    
+    // Only keep VIPs that have at least one matching client-SSL profile.
+    where size(matchingSSL) > 0
+    
+    select {
+        device: device.name,
+        vipname: match.data.virtualname,
+        vipdesc: match.data.vipdescription,
+        vipdestination: match.data.vipdestination,
+        vippool: match.data.vip_pool,
+        // Optionally, display the original profiles block and the matching client-SSL profiles.
+        originalProfiles: match.data.profile,
+        vip_ssl_profiles: matchingSSL
+    }
+
+
 let matchingSSL = (foreach ssl in all_client_ssl
     where matches(match.data.profile, ssl.data.sslProfileName)
     select ssl
