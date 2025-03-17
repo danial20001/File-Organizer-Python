@@ -1,3 +1,9 @@
+       certs: (foreach x in matchingSSL select x.cert),
+        // Flatten all keys into one array
+        keys: (foreach x in matchingSSL select x.key)
+
+
+
 foreach device in network.devices
 where device.platform.vendor == Vendor.F5
 where matches(toUpperCase(device.name), "*PZ*") || matches(toUpperCase(device.name), "*SZ*")
