@@ -1,3 +1,28 @@
+foreach device in network.devices
+where device.platform.vendor == Vendor.F5
+where matches(toUpperCase(device.name), "*PZ*") || matches(toUpperCase(device.name), "*SZ*")
+
+// Find the specific command output for "list ltm client-ssl"
+let ssl_output = max(foreach p in device.outputs.commands
+    where p.commandText == "list ltm client-ssl"
+    select p.response
+)
+
+// Only proceed if it's present
+where isPresent(ssl_output)
+
+// Show a snippet of the output to confirm
+select {
+    device: device.name,
+    commandText: "list ltm client-ssl",
+    outputSnippet: substring(ssl_output, 0, 300)
+}
+
+
+
+
+
+
 foreach match in blockMatches(ltm_config, pattern)
     // Split the multi-line profiles block into a list of profile names.
     // (Assuming 'split' is supported; if not, you might need to adjust your pattern)
