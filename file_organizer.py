@@ -2,6 +2,19 @@ foreach device in network.devices
 where device.platform.vendor == Vendor.F5
 where matches(toUpperCase(device.name), "*PZ*") || matches(toUpperCase(device.name), "*SZ*")
 
+foreach p in device.outputs.commands
+select {
+    deviceName: device.name,
+    commandType: p.commandType,
+    commandText: p.commandText
+}
+
+
+
+foreach device in network.devices
+where device.platform.vendor == Vendor.F5
+where matches(toUpperCase(device.name), "*PZ*") || matches(toUpperCase(device.name), "*SZ*")
+
 // Find the specific command output for "list ltm client-ssl"
 let ssl_output = max(foreach p in device.outputs.commands
     where p.commandText == "list ltm client-ssl"
