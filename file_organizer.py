@@ -1,4 +1,8 @@
-       certs: (foreach x in matchingSSL select x.cert),
+tmsh list sys file ssl-cert | grep -B 1 'expiration' | awk '/sys file/ {cert=$4} /expiration-string/ {print cert, $2, $3, $4, $5, $6}'
+    
+        
+            
+                       certs: (foreach x in matchingSSL select x.cert),
         // Flatten all keys into one array
         keys: (foreach x in matchingSSL select x.key)
 
