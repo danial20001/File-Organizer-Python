@@ -1,3 +1,9 @@
+Text.Combine([GroupedRows][Column1], "#(lf)")
+
+
+
+
+
 tmsh list sys file ssl-cert | grep -B 1 'expiration' | awk '/sys file/ {cert=$4} /expiration-string/ {print cert, $2, $3, $4, $5, $6}'
     
         
