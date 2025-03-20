@@ -1,3 +1,19 @@
+
+Sub InsertPauseRows()
+    Dim i As Long
+    Dim LastRow As Long
+    
+    ' Find the last used row in column A
+    LastRow = Cells(Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop from the bottom up to insert a new row after each command
+    For i = LastRow To 1 Step -1
+        Rows(i + 1).Insert Shift:=xlDown
+        Cells(i + 1, "A").Value = "\p3"
+    Next i
+End Sub
+
+
 Clean Up:
 	•	You can now remove the “GroupedRows” column if it’s no longer needed by right‑clicking its header and selecting Remove.
 	•	Click Close & Load to bring your transformed data back into Excel.
