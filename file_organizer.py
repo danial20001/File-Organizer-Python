@@ -1,3 +1,10 @@
+Clean Up:
+	•	You can now remove the “GroupedRows” column if it’s no longer needed by right‑clicking its header and selecting Remove.
+	•	Click Close & Load to bring your transformed data back into Excel.
+
+This method groups your rows based on the “Group” column, then combines the lines for each group into one cell with internal line breaks. Make sure to set cell formatting in Excel to Wrap Text for the combined output 
+
+
 Text.Combine([GroupedRows][Column1], "#(lf)")
 
 
