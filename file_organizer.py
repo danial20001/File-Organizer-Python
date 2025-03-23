@@ -1,3 +1,13 @@
+    # Dynamically load the A-record files based on CSV and cache them
+    A_RECORDS_MAPPING = {}
+    for device in list_of_f5_devices:
+        a_record_filename = device['a_record_file']
+        if a_record_filename not in A_RECORDS_MAPPING:
+            a_record_path = f"/storage/PUT_STUFF_IN_HERE/zksg03d/Scripts/WIP Standards/{a_record_filename}.txt"
+            A_RECORDS_MAPPING[a_record_filename] = load_a_records(a_record_path)
+
+
+
 
 Sub InsertPauseRows()
     Dim i As Long
