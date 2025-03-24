@@ -1,3 +1,44 @@
+
+# $language = "VBScript"
+# $interface = "1.0"
+
+Sub Main
+    Dim fso, file, line
+    Dim filePath, prompt
+
+    ' Update with your actual file path
+    filePath = "C:\path\to\commands.txt"
+
+    ' Update this with your terminal's shell prompt if known (example below assumes Linux-like shell)
+    prompt = "#"
+
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set file = fso.OpenTextFile(filePath, 1)
+
+    Do While Not file.AtEndOfStream
+        line = Trim(file.ReadLine)
+        If line <> "" Then
+            crt.Screen.Send line & vbCr
+
+            ' Wait loop to handle confirmation prompts and ensure output finishes
+            Do
+                result = crt.Screen.WaitForStrings( _
+                    Array("yes/no", prompt), 30)
+
+                If result = 1 Then
+                    crt.Screen.Send "yes" & vbCr
+                End If
+            Loop Until result = 2 ' Only exit loop when shell prompt is seen
+        End If
+    Loop
+
+    file.Close
+    Set file = Nothing
+    Set fso = Nothing
+End Sub
+
+
+
 a_record_file = f5_device.get('a_record_file', '')
 if a_record_file in A_RECORDS_MAPPING:
     # Convert wideip_name to lower case to match load_a_records behavior
