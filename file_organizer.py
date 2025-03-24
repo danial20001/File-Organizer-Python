@@ -2,6 +2,48 @@
 # $interface = "1.0"
 
 def Main():
+    commands_file = "C:\\path\\to\\commands.txt"  # Update this to your file path
+    shell_prompt = "#"                             # Update this to match your device prompt
+    timeout = 30
+
+    with open(commands_file, "r") as f:
+        for line in f:
+            command = line.strip()
+            if not command:
+                continue
+
+            # Send command
+            crt.Screen.Send(command + "\r")
+
+            while True:
+                # Wait for either prompt asking to display, or the shell prompt
+                result = crt.Screen.WaitForStrings([
+                    "Display all", 
+                    "(y/n)", 
+                    "items? (y/n)", 
+                    shell_prompt
+                ], timeout)
+
+                if result in [1, 2, 3]:
+                    # As soon as we see anything resembling the display prompt, send y and Enter
+                    crt.Screen.Send("y\r")
+                elif result == 4:
+                    break  # Got the shell prompt back, move on
+                else:
+                    crt.Dialog.MessageBox("Timeout waiting for device prompt or confirmation.")
+                    return
+
+Main()
+
+
+
+
+
+
+# $language = "python"
+# $interface = "1.0"
+
+def Main():
     # === CONFIGURATION ===
     commands_file = "C:\\path\\to\\commands.txt"   # Change this path
     shell_prompt = "#"                             # Change if your prompt is different (e.g., "$", ">", etc.)
