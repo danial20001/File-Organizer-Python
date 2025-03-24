@@ -1,3 +1,38 @@
+# $language = "python"
+# $interface = "1.0"
+
+def Main():
+    # === CONFIGURATION ===
+    commands_file = "C:\\path\\to\\commands.txt"   # Change this path
+    shell_prompt = "#"                             # Change if your prompt is different (e.g., "$", ">", etc.)
+    timeout = 30                                    # Seconds to wait per command
+
+    # Open the file with the list of commands
+    with open(commands_file, "r") as file:
+        for line in file:
+            command = line.strip()
+            if command == "":
+                continue  # Skip empty lines
+
+            crt.Screen.Send(command + "\r")
+
+            while True:
+                result = crt.Screen.WaitForStrings(
+                    ["yes/no", shell_prompt], timeout)
+
+                if result == 1:
+                    crt.Screen.Send("yes\r")
+                elif result == 2:
+                    break  # Got prompt back, move to next command
+                else:
+                    crt.Dialog.MessageBox("Timeout waiting for command output or prompt.")
+                    return
+
+Main()
+
+
+
+
 
 # $language = "VBScript"
 # $interface = "1.0"
