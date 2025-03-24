@@ -1,4 +1,19 @@
-    # Dynamically load the A-record files based on CSV and cache them
+a_record_file = f5_device.get('a_record_file', '')
+if a_record_file in A_RECORDS_MAPPING:
+    # Convert wideip_name to lower case to match load_a_records behavior
+    wideip_entry["A-Record"] = A_RECORDS_MAPPING[a_record_file].get(wideip_name.lower(), [])
+else:
+    wideip_entry["A-Record"] = []
+
+
+
+
+
+
+
+
+
+# Dynamically load the A-record files based on CSV and cache them
     A_RECORDS_MAPPING = {}
     for device in list_of_f5_devices:
         a_record_filename = device['a_record_file']
