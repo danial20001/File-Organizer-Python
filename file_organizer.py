@@ -2,6 +2,53 @@
 # $interface = "1.0"
 
 def Main():
+    import time
+
+    # === CONFIG ===
+    commands_file = "C:\\path\\to\\commands.txt"  # Change to your path
+    shell_prompt = "#"                            # Change if needed (e.g., >, ~ #, etc.)
+    timeout = 60                                   # Wait per step (increase if needed)
+    wait_after_y = 1000                            # Milliseconds to wait after sending 'y'
+
+    with open(commands_file, "r") as f:
+        for line in f:
+            command = line.strip()
+            if not command:
+                continue
+
+            prompt_handled = False
+
+            # Send the command
+            crt.Screen.Send(command + "\r")
+
+            while True:
+                result = crt.Screen.WaitForStrings([
+                    "Display all",                 # 1
+                    "(y/n)",                       # 2
+                    "items? (y/n)",                # 3
+                    shell_prompt                   # 4
+                ], timeout)
+
+                if result in [1, 2, 3] and not prompt_handled:
+                    crt.Sleep(500)                # Short pause before replying
+                    crt.Screen.Send("y\r")
+                    prompt_handled = True
+                    crt.Sleep(wait_after_y)       # Wait for output to start
+                elif result == 4:
+                    # Done, got prompt back
+                    crt.Sleep(500)                # Pause before next command
+                    break
+                elif result == 0:
+                    crt.Dialog.MessageBox("Timeout: No prompt or confirmation detected.")
+                    return
+
+
+
+
+# $language = "python"
+# $interface = "1.0"
+
+def Main():
     commands_file = "C:\\path\\to\\commands.txt"  # Update this
     shell_prompt = "#"                             # Update this if your prompt is different
     timeout = 60                                    # Can be increased for long outputs
