@@ -2,6 +2,52 @@
 # $interface = "1.0"
 
 def Main():
+    commands_file = "C:\\path\\to\\commands.txt"  # Update this
+    shell_prompt = "#"                             # Update this if your prompt is different
+    timeout = 60                                    # Can be increased for long outputs
+
+    with open(commands_file, "r") as f:
+        for line in f:
+            command = line.strip()
+            if not command:
+                continue
+
+            # Send the command
+            crt.Screen.Send(command + "\r")
+
+            prompt_handled = False
+
+            while True:
+                # Wait for:
+                # 1 - the "Display all" question
+                # 2 - the shell prompt (meaning output is done)
+                result = crt.Screen.WaitForStrings([
+                    "Display all", 
+                    "(y/n)", 
+                    "items? (y/n)", 
+                    shell_prompt
+                ], timeout)
+
+                if result in [1, 2, 3] and not prompt_handled:
+                    # Only respond once
+                    crt.Screen.Send("y\r")
+                    prompt_handled = True
+                elif result == 4:
+                    # Output finished
+                    break
+                elif result == 0:
+                    crt.Dialog.MessageBox("Timeout — device didn't respond in time.")
+                    return
+
+Main()
+
+
+
+
+# $language = "python"
+# $interface = "1.0"
+
+def Main():
     commands_file = "C:\\path\\to\\commands.txt"  # Update this to your file path
     shell_prompt = "#"                             # Update this to match your device prompt
     timeout = 30
