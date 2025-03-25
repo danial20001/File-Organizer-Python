@@ -1,3 +1,8 @@
+tmsh list sys ssl cert <cert_name> | grep -i "subject" | head -1 | sed -E 's/.*CN=([^,]+).*/\1/'
+
+
+
+
 # $language = "python"
 # $interface = "1.0"
 
