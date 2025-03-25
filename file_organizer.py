@@ -1,6 +1,19 @@
 tmsh list sys ssl cert <cert_name> | grep -i "subject" | head -1 | sed -E 's/.*CN=([^,]+).*/\1/'
 
+subject_str = cert.get("subject", "")
+# Split by comma and take the first element, then remove the "CN=" prefix.
+first_part = subject_str.split(",")[0].strip()
+if first_part.startswith("CN="):
+    cn_value = first_part[3:]  # Remove "CN="
+else:
+    cn_value = first_part  # Fallback if not formatted as expected
 
+# Now you can store cn_value in your DB/JSON.
+db.insert({
+    "Cert": cert_name,
+    "Subject": cn_value,
+    # ... other fields
+})
 
 
 # $language = "python"
